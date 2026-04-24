@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 abstract class BaseCrudController extends Controller
 {
@@ -15,6 +17,8 @@ abstract class BaseCrudController extends Controller
     protected array $storeRules = [];
     protected array $updateRules = [];
     protected array $with = [];
+    protected ?string $storeRequestClass = null;
+    protected ?string $updateRequestClass = null;
 
     public function index(Request $request): JsonResponse
     {
@@ -47,7 +51,7 @@ abstract class BaseCrudController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate($this->storeRules);
+        $data = $this->validateForAction($request, true);
         $data = $this->transformData($data);
 
         /** @var Model $record */
@@ -63,8 +67,7 @@ abstract class BaseCrudController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $record = $this->findOrFail($id);
-        $rules = empty($this->updateRules) ? $this->storeRules : $this->updateRules;
-        $data = $request->validate($rules);
+        $data = $this->validateForAction($request, false);
         $data = $this->transformData($data);
 
         $record->update($data);
@@ -97,5 +100,47 @@ abstract class BaseCrudController extends Controller
     protected function transformData(array $data): array
     {
         return $data;
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    protected function validateForAction(Request $request, bool $isStore): array
+    {
+        $requestClass = $isStore
+            ? $this->storeRequestClass
+            : ($this->updateRequestClass ?? $this->storeRequestClass);
+
+        if ($requestClass === null) {
+            $rules = $isStore
+                ? $this->storeRules
+                : (empty($this->updateRules) ? $this->storeRules : $this->updateRules);
+
+            return $request->validate($rules);
+        }
+
+        /** @var FormRequest $formRequest */
+        $formRequest = $requestClass::createFrom($request);
+        $formRequest->setContainer(app());
+        $formRequest->setRedirector(app('redirect'));
+        $formRequest->setRouteResolver($request->getRouteResolver());
+        $formRequest->setUserResolver($request->getUserResolver());
+
+        if (!$formRequest->authorize()) {
+            throw new AccessDeniedHttpException('This action is unauthorized.');
+        }
+
+        $validator = validator(
+            $formRequest->all(),
+            $formRequest->rules(),
+            $formRequest->messages(),
+            $formRequest->attributes(),
+        );
+
+        if (method_exists($formRequest, 'withValidator')) {
+            $formRequest->withValidator($validator);
+        }
+
+        return $validator->validate();
     }
 }

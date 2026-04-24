@@ -1,25 +1,27 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoodOrder | Portal de Acceso</title>
+    <title>GoodOrder | Login</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Outfit:wght@400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         :root {
-            --ink: #f8f4e8;
-            --ink-soft: #e6dcc8;
-            --bg-a: #0f2226;
-            --bg-b: #b07b3e;
-            --glass: rgba(255, 248, 230, 0.12);
-            --line: rgba(255, 255, 255, 0.22);
-            --btn: #f1a03d;
-            --btn-ink: #16242f;
-            --danger: #ffd6ca;
-            --danger-ink: #6f1e12;
-            --ok: #d9ffe7;
-            --ok-ink: #1a5d39;
+            --bg: #191919;
+            --sidebar: #202020;
+            --surface: #1f1f1f;
+            --surface-2: #232323;
+            --line: #2d2d2d;
+            --line-soft: #323232;
+            --text: #ebebeb;
+            --muted: #a3a3a3;
+            --accent: #2563eb;
+            --accent-soft: rgba(47,129,247,0.14);
+            --danger: #fca5a5;
+            --danger-bg: #3a1f1f;
+            --ok: #86efac;
+            --ok-bg: #163321;
         }
 
         * { box-sizing: border-box; }
@@ -27,174 +29,204 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: 'Space Grotesk', sans-serif;
-            color: var(--ink);
-            background:
-                radial-gradient(1200px 600px at 20% 20%, rgba(31, 119, 105, 0.45), transparent),
-                radial-gradient(900px 500px at 80% 0%, rgba(241, 160, 61, 0.45), transparent),
-                linear-gradient(140deg, var(--bg-a), #0a1217 40%, #332312 100%);
-            display: grid;
-            place-items: center;
-            padding: 24px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text);
+            background: var(--bg);
         }
 
         .shell {
-            width: min(980px, 100%);
+            min-height: 100vh;
             display: grid;
-            grid-template-columns: 1.15fr 1fr;
-            border-radius: 30px;
-            border: 1px solid var(--line);
-            background: linear-gradient(130deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
-            backdrop-filter: blur(24px) saturate(120%);
-            overflow: hidden;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
-            animation: lift 620ms ease;
+            grid-template-columns: 270px 1fr;
         }
 
-        .hero {
-            padding: 38px;
-            position: relative;
+        .sidebar {
+            background: var(--sidebar);
             border-right: 1px solid var(--line);
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            padding: 10px;
         }
 
-        .orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(2px);
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
         }
 
-        .orb.one { width: 170px; height: 170px; background: rgba(31, 164, 137, 0.26); right: -50px; top: -50px; }
-        .orb.two { width: 210px; height: 210px; background: rgba(241, 160, 61, 0.22); left: -70px; bottom: -90px; }
+        .brand-badge {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            border: 1px solid #3a3a3a;
+            background: #171717;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #d4d4d4;
+        }
+
+        .brand span { font-size: 14px; font-weight: 700; color: #f5f5f5; }
+
+        .menu-label {
+            color: #8e8e8e;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            padding: 2px 10px;
+            margin-top: 8px;
+        }
+
+        .menu-item {
+            display: block;
+            color: #b2b2b2;
+            text-decoration: none;
+            border-radius: 7px;
+            padding: 7px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            margin-top: 2px;
+        }
+
+        .menu-item.active {
+            background: #2f2f2f;
+            color: #fff;
+            border-color: #3a3a3a;
+        }
+
+        .main {
+            display: grid;
+            place-items: center;
+            padding: 18px;
+        }
+
+        .card {
+            width: min(460px, 100%);
+            border: 1px solid var(--line-soft);
+            border-radius: 12px;
+            background: linear-gradient(180deg, var(--surface-2), var(--surface));
+            padding: 16px;
+        }
 
         h1 {
-            font-family: 'Outfit', sans-serif;
-            margin: 0 0 10px;
-            font-size: 2.2rem;
-            letter-spacing: 0.3px;
-        }
-
-        .hero p { margin: 0; color: var(--ink-soft); line-height: 1.45; max-width: 44ch; }
-
-        .chips { margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; }
-
-        .chip {
-            border: 1px solid var(--line);
-            background: var(--glass);
-            border-radius: 999px;
-            padding: 8px 11px;
-            font-size: 0.84rem;
-        }
-
-        .form-wrap { padding: 34px; }
-
-        .title {
-            margin: 0 0 15px;
-            font-family: 'Outfit', sans-serif;
+            margin: 0;
             font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
         }
 
-        form { display: grid; gap: 13px; }
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
 
-        label { display: grid; gap: 6px; font-weight: 600; font-size: 0.92rem; color: var(--ink-soft); }
+        form { margin-top: 14px; display: grid; gap: 10px; }
 
-        input, select {
-            border: 1px solid var(--line);
-            background: rgba(255,255,255,0.1);
-            color: var(--ink);
-            border-radius: 12px;
-            padding: 11px 12px;
-            font: inherit;
+        .field { display: grid; gap: 6px; }
+        .field label { font-size: 12px; color: #9f9f9f; font-weight: 700; }
+
+        .field input,
+        .field select {
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            background: #171717;
+            color: #ececec;
+            padding: 9px 10px;
+            font-family: inherit;
+            font-size: 14px;
             outline: none;
         }
 
-        input::placeholder { color: #dacfb8; }
-
-        input:focus, select:focus { box-shadow: 0 0 0 3px rgba(241, 160, 61, 0.26); }
-
-        option { color: #1b2830; }
+        .field input:focus,
+        .field select:focus {
+            border-color: #2f81f7;
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
 
         .btn {
-            margin-top: 4px;
-            border: 0;
-            border-radius: 12px;
-            background: var(--btn);
-            color: var(--btn-ink);
-            padding: 12px;
-            font: 700 1rem/1 'Outfit', sans-serif;
+            border-radius: 8px;
+            border: 1px solid #2563eb;
+            background: #2563eb;
+            color: #fff;
+            padding: 10px 12px;
+            font-weight: 800;
+            font-size: 13px;
             cursor: pointer;
         }
 
-        .hint { color: var(--ink-soft); margin: 0; font-size: 0.88rem; }
+        .btn:hover { background: #1d4ed8; border-color: #1d4ed8; }
 
-        .alert { border-radius: 12px; padding: 10px 12px; font-size: 0.9rem; margin-bottom: 10px; }
-        .alert.error { background: var(--danger); color: var(--danger-ink); }
-        .alert.ok { background: var(--ok); color: var(--ok-ink); }
+        .hint { margin: 0; color: var(--muted); font-size: 12px; }
+        .alert { border-radius: 8px; padding: 9px 10px; font-size: 13px; margin-top: 10px; border: 1px solid; }
+        .alert.error { background: var(--danger-bg); color: var(--danger); border-color: #5b2a2a; }
+        .alert.ok { background: var(--ok-bg); color: var(--ok); border-color: #1f4f30; }
 
-        @keyframes lift {
-            from { transform: translateY(16px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @media (max-width: 860px) {
+        @media (max-width: 940px) {
             .shell { grid-template-columns: 1fr; }
-            .hero { border-right: 0; border-bottom: 1px solid var(--line); }
-            .form-wrap { padding: 24px; }
+            .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+            .main { padding: 14px; }
         }
     </style>
 </head>
 <body>
 <div class="shell">
-    <section class="hero">
-        <div class="orb one"></div>
-        <div class="orb two"></div>
-        <h1>GoodOrder Portal</h1>
-        <p>Acceso por rol con look glass y ambiente chill para gestionar modulos, horarios y datos academicos.</p>
-        <div class="chips">
-            <span class="chip">Glass UI</span>
-            <span class="chip">Estudiante / Docente / Jefe</span>
-            <span class="chip">Mood Frank Ocean</span>
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-badge">N</div>
+            <span>jocagu's Notion</span>
         </div>
-    </section>
 
-    <section class="form-wrap">
-        <h2 class="title">Acceso al sistema</h2>
+        <div class="menu-label">Recents</div>
+        <a class="menu-item active" href="#">LOGIN</a>
+        <a class="menu-item" href="#">EXAMEN</a>
+        <a class="menu-item" href="#">DOCENTE</a>
+        <a class="menu-item" href="#">ESTUDIANTE</a>
+    </aside>
 
-        @if (session('auth_error'))
-            <div class="alert error">{{ session('auth_error') }}</div>
-        @endif
+    <main class="main">
+        <section class="card">
+            <h1>Acceso al portal</h1>
+            <p class="subtitle">Ingresa con tu perfil para abrir el workspace.</p>
 
-        @if (session('auth_ok'))
-            <div class="alert ok">{{ session('auth_ok') }}</div>
-        @endif
+            @if (session('auth_error'))
+                <div class="alert error">{{ session('auth_error') }}</div>
+            @endif
 
-        <form method="POST" action="{{ route('portal.login.submit') }}">
-            @csrf
+            @if (session('auth_ok'))
+                <div class="alert ok">{{ session('auth_ok') }}</div>
+            @endif
 
-            <label>
-                Perfil
-                <select name="role" required>
-                    <option value="estudiante" @selected(old('role') === 'estudiante')>Estudiante</option>
-                    <option value="docente" @selected(old('role') === 'docente')>Docente</option>
-                    <option value="jefe" @selected(old('role') === 'jefe')>Jefe de carrera</option>
-                </select>
-            </label>
+            <form method="POST" action="{{ route('portal.login.submit') }}">
+                @csrf
 
-            <label>
-                Correo
-                <input type="email" name="correo" value="{{ old('correo') }}" placeholder="nombre@correo.com" required>
-            </label>
+                <div class="field">
+                    <label for="role">Perfil</label>
+                    <select id="role" name="role" required>
+                        <option value="estudiante" @selected(old('role') === 'estudiante')>Estudiante</option>
+                        <option value="docente" @selected(old('role') === 'docente')>Docente</option>
+                        <option value="jefe" @selected(old('role') === 'jefe')>Jefe de carrera</option>
+                    </select>
+                </div>
 
-            <label>
-                Contrasena
-                <input type="password" name="password" placeholder="Tu contrasena" required>
-            </label>
+                <div class="field">
+                    <label for="correo">Correo</label>
+                    <input id="correo" type="email" name="correo" value="{{ old('correo') }}" placeholder="nombre@correo.com" required>
+                </div>
 
-            <button class="btn" type="submit">Entrar</button>
-            <p class="hint">Contrasena demo por defecto en datos seed: <strong>UPB123</strong></p>
-        </form>
-    </section>
+                <div class="field">
+                    <label for="password">Contrasena</label>
+                    <input id="password" type="password" name="password" placeholder="Tu contrasena" required>
+                </div>
+
+                <button class="btn" type="submit">Entrar</button>
+                <p class="hint">Password demo seed: <strong>UPB123</strong></p>
+            </form>
+        </section>
+    </main>
 </div>
 </body>
 </html>

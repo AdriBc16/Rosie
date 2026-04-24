@@ -3,19 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\HorarioExportRequest;
+use App\Http\Requests\Api\HorarioIdealRequest;
 use App\Models\DocenteMateria;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HorarioPlanningController extends Controller
 {
-    public function ideal(Request $request): JsonResponse
+    public function ideal(HorarioIdealRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'id_modulo' => ['nullable', 'integer', 'exists:modulo,id_modulo'],
-        ]);
+        $validated = $request->validated();
 
         $query = DocenteMateria::with(['materia', 'docente', 'horario', 'modulo']);
 
@@ -71,12 +70,9 @@ class HorarioPlanningController extends Controller
         ]);
     }
 
-    public function exportar(Request $request): JsonResponse|StreamedResponse
+    public function exportar(HorarioExportRequest $request): JsonResponse|StreamedResponse
     {
-        $validated = $request->validate([
-            'formato' => ['nullable', 'in:json,csv'],
-            'id_modulo' => ['nullable', 'integer', 'exists:modulo,id_modulo'],
-        ]);
+        $validated = $request->validated();
 
         $query = DocenteMateria::with(['materia', 'docente', 'horario', 'modulo']);
 

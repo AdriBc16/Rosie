@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Web\HeadAssignMateriaRequest;
+use App\Http\Requests\Web\HeadCreateMateriaRequest;
+use App\Http\Requests\Web\PortalLoginRequest;
 use App\Models\Docente;
 use App\Models\DocenteMateria;
 use App\Models\Estudiante;
@@ -16,7 +19,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PortalAuthController extends Controller
@@ -26,19 +28,12 @@ class PortalAuthController extends Controller
         return view('portal.login');
     }
 
-    /**
-     * @throws ValidationException
-     */
-    public function login(Request $request): RedirectResponse
+    public function login(PortalLoginRequest $request): RedirectResponse
     {
-        $credentials = $request->validate([
-            'role' => ['required', 'in:estudiante,docente,jefe'],
-            'correo' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:6', 'max:100'],
-        ]);
+        $credentials = $request->validated();
 
         $role = $credentials['role'];
-        $correo = mb_strtolower(trim($credentials['correo']));
+        $correo = $credentials['correo'];
         $password = $credentials['password'];
 
         if ($role === 'estudiante') {
@@ -447,11 +442,9 @@ class PortalAuthController extends Controller
         ]);
     }
 
-    public function headCreateMateria(Request $request): JsonResponse
+    public function headCreateMateria(HeadCreateMateriaRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'nombre' => ['required', 'string', 'min:3', 'max:120', 'unique:materia,nombre'],
-        ]);
+        $data = $request->validated();
 
         $materia = Materia::query()->create([
             'nombre' => trim($data['nombre']),
@@ -463,16 +456,11 @@ class PortalAuthController extends Controller
         ], 201);
     }
 
-    public function headAssignMateria(Request $request): JsonResponse
+    public function headAssignMateria(HeadAssignMateriaRequest $request): JsonResponse
     {
         $portalUser = $request->session()->get('portal_user');
 
-        $data = $request->validate([
-            'id_materia' => ['required', 'integer', 'exists:materia,id_materia'],
-            'id_docente' => ['required', 'integer', 'exists:docente,id_docente'],
-            'id_horario' => ['required', 'integer', 'exists:horario,id_horario'],
-            'id_modulo' => ['required', 'integer', 'exists:modulo,id_modulo'],
-        ]);
+        $data = $request->validated();
 
         $teacher = Docente::query()
             ->where('id_docente', $data['id_docente'])

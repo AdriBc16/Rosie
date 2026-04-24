@@ -1,291 +1,63 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Jefe de Carrera</title>
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500&display=swap');
+﻿@extends('portal.layout')
 
-        :root {
-            --bg: #edf0f7;
-            --bg-2: #e4eaf7;
-            --surface: rgba(255, 255, 255, 0.75);
-            --surface-strong: #ffffff;
-            --ink: #101828;
-            --muted: #596273;
-            --line: rgba(16, 24, 40, 0.14);
-            --accent: #145df4;
-            --accent-soft: rgba(20, 93, 244, 0.12);
-            --ok: #0f9f6e;
-            --warn: #ce6f1f;
-        }
+@section('title', 'Panel Jefe de Carrera')
+@section('breadcrumbs', 'Portal / Jefe de carrera')
+@section('role_chip', 'Jefe')
+@section('page_title', 'Panel de coordinacion')
+@section('page_subtitle', 'Gestiona materias, asignaciones y disponibilidad docente desde el portal.')
 
-        * { box-sizing: border-box; }
+@section('sidebar')
+    <a href="{{ route('portal.head') }}" class="active">Home</a>
+    <a href="/api/horarios/configuracion-ideal" target="_blank">Configuracion ideal</a>
+    <a href="/api/horarios/exportar?formato=csv" target="_blank">Exportar CSV</a>
+    <a href="/api/horarios/exportar?formato=json" target="_blank">Exportar JSON</a>
+@endsection
 
-        body {
-            margin: 0;
-            font-family: 'Manrope', sans-serif;
-            color: var(--ink);
-            background:
-                radial-gradient(circle at 8% -4%, #dce5ff 0, rgba(220, 229, 255, 0) 38%),
-                radial-gradient(circle at 90% 0%, #ffe8dd 0, rgba(255, 232, 221, 0) 30%),
-                linear-gradient(155deg, var(--bg), var(--bg-2));
-            min-height: 100vh;
-            padding: 24px;
-        }
+@section('top_actions')
+    <form method="POST" action="{{ route('portal.logout') }}">
+        @csrf
+        <button class="btn btn-danger" type="submit">Cerrar sesion</button>
+    </form>
+@endsection
 
-        .shell {
-            max-width: 1200px;
-            margin: 0 auto;
-            animation: rise .65s ease;
-        }
+@section('page_styles')
+<style>
+    .big { margin: 0; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; }
+    .availability, .subject-list { display:grid; gap:8px; max-height: 320px; overflow:auto; padding-right: 2px; }
+    .slot {
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        background: var(--surface-soft);
+        padding: 9px 10px;
+    }
+    .slot .tag {
+        display:inline-flex;
+        border-radius:999px;
+        padding:3px 8px;
+        font-size:.73rem;
+        font-weight:700;
+        margin-bottom:5px;
+    }
+    .tag.busy { background: rgba(251, 146, 60, .16); color: #fdba74; }
+    .tag.pref { background: var(--accent-soft); color: #93c5fd; }
+    .empty-state {
+        border: 1px dashed var(--line-soft);
+        border-radius: 10px;
+        background: #1c1e21;
+        color: var(--muted);
+        padding: 12px;
+        text-align: center;
+        font-weight: 600;
+    }
+    .specific-layout { display:grid; grid-template-columns: 320px 1fr; gap: 12px; }
+    .specific-sidebar { display:grid; align-content:start; gap:8px; }
+    .actions { margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap; }
+    @media (max-width: 1040px) { .specific-layout { grid-template-columns: 1fr; } }
+</style>
+@endsection
 
-        @keyframes rise {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .top {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        h1 {
-            margin: 0;
-            font-family: 'Fraunces', serif;
-            font-size: clamp(1.8rem, 3vw, 2.45rem);
-            line-height: 1.08;
-        }
-
-        .subtitle {
-            margin: 6px 0 0;
-            color: var(--muted);
-            font-weight: 500;
-        }
-
-        .chip {
-            border: 1px solid var(--line);
-            background: var(--surface);
-            padding: 8px 14px;
-            border-radius: 999px;
-            font-size: .78rem;
-            letter-spacing: .12em;
-            text-transform: uppercase;
-            font-weight: 800;
-        }
-
-        .grid {
-            margin-top: 14px;
-            display: grid;
-            gap: 12px;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
-        .card {
-            border: 1px solid var(--line);
-            background: var(--surface);
-            border-radius: 20px;
-            padding: 16px;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
-        }
-
-        h2 {
-            margin: 0 0 10px;
-            font-size: 1.02rem;
-            font-weight: 800;
-        }
-
-        .big {
-            margin: 0;
-            font-size: 2.05rem;
-            font-weight: 800;
-            color: #0f172a;
-        }
-
-        .muted {
-            margin: 0;
-            color: var(--muted);
-        }
-
-        .work-grid {
-            margin-top: 12px;
-            display: grid;
-            gap: 12px;
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .field {
-            display: grid;
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-
-        .field label {
-            font-size: .86rem;
-            font-weight: 700;
-            color: var(--muted);
-        }
-
-        .field input,
-        .field select {
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            background: #fff;
-            color: var(--ink);
-            padding: 10px 12px;
-            font-family: inherit;
-            font-size: .95rem;
-            outline: none;
-        }
-
-        .field input:focus,
-        .field select:focus {
-            border-color: rgba(20, 93, 244, 0.5);
-            box-shadow: 0 0 0 3px rgba(20, 93, 244, 0.12);
-        }
-
-        .btn {
-            border: 0;
-            border-radius: 12px;
-            padding: 10px 13px;
-            font-size: .92rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform .18s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: #fff;
-            box-shadow: 0 8px 16px rgba(20, 93, 244, 0.28);
-        }
-
-        .btn-ghost {
-            background: #fff;
-            color: var(--ink);
-            border: 1px solid var(--line);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .feedback {
-            min-height: 22px;
-            margin-top: 6px;
-            font-size: .88rem;
-            font-weight: 700;
-        }
-
-        .feedback.ok { color: var(--ok); }
-        .feedback.error { color: #c53030; }
-
-        .availability {
-            margin-top: 8px;
-            display: grid;
-            gap: 8px;
-            max-height: 290px;
-            overflow: auto;
-            padding-right: 2px;
-        }
-
-        .specific-layout {
-            margin-top: 12px;
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 12px;
-        }
-
-        .specific-sidebar {
-            display: grid;
-            gap: 10px;
-            align-content: start;
-        }
-
-        .specific-board {
-            min-height: 300px;
-        }
-
-        .subject-list {
-            margin-top: 10px;
-            display: grid;
-            gap: 8px;
-            max-height: 360px;
-            overflow: auto;
-            padding-right: 2px;
-        }
-
-        .empty-state {
-            border: 1px dashed var(--line);
-            border-radius: 14px;
-            padding: 14px;
-            background: rgba(255, 255, 255, .5);
-            color: var(--muted);
-            text-align: center;
-            font-weight: 600;
-        }
-
-        .slot {
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 10px;
-            background: var(--surface-strong);
-        }
-
-        .slot .tag {
-            display: inline-flex;
-            border-radius: 999px;
-            padding: 3px 8px;
-            font-size: .74rem;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .tag.busy {
-            background: rgba(206, 111, 31, 0.12);
-            color: var(--warn);
-        }
-
-        .tag.pref {
-            background: var(--accent-soft);
-            color: var(--accent);
-        }
-
-        .footer {
-            margin-top: 18px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        @media (max-width: 1040px) {
-            .grid { grid-template-columns: 1fr; }
-            .work-grid { grid-template-columns: 1fr; }
-            .specific-layout { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-<div class="shell">
-    <div class="top">
-        <div>
-            <h1>Panel de Coordinacion</h1>
-            <p class="subtitle">Bienvenido, {{ $portalUser['name'] }}. Gestiona materias y asignaciones con APIs del portal.</p>
-        </div>
-        <span class="chip">JEFE DE CARRERA</span>
-    </div>
-
-    <div class="grid">
+@section('content')
+    <div class="grid-3">
         <section class="card">
             <h2>Docentes</h2>
             <p class="big">{{ $teachersCount }}</p>
@@ -305,7 +77,7 @@
         </section>
     </div>
 
-    <div class="work-grid">
+    <div class="grid-2" style="margin-top:12px;">
         <section class="card">
             <h2>Crear nueva materia</h2>
             <form id="createMateriaForm">
@@ -326,7 +98,7 @@
         </section>
     </div>
 
-    <div class="work-grid">
+    <div class="grid-2" style="margin-top:12px;">
         <section class="card">
             <h2>Asignar materia a docente</h2>
             <form id="assignForm">
@@ -357,13 +129,13 @@
 
         <section class="card">
             <h2>Disponibilidad del docente</h2>
-            <p class="muted" style="margin-bottom:8px;">Cuando eliges docente, aqui ves sus horarios ocupados y sus horarios de preferencia por modulo.</p>
+            <p class="muted" style="margin-bottom:8px;">Al elegir docente se muestran horarios ocupados y preferencias por modulo.</p>
             <div id="availabilityStatus" class="feedback">Selecciona un docente para cargar disponibilidad.</div>
             <div id="availabilityList" class="availability"></div>
         </section>
     </div>
 
-    <div class="specific-layout">
+    <div class="specific-layout" style="margin-top:12px;">
         <section class="card specific-sidebar">
             <h2>Busqueda especifica</h2>
 
@@ -388,7 +160,7 @@
             <button id="specificLoadBtn" class="btn btn-primary" type="button">Ver materias</button>
         </section>
 
-        <section class="card specific-board">
+        <section class="card">
             <h2>Materias por persona</h2>
             <p class="muted" id="specificMeta">Selecciona docente o estudiante para ver su carga academica exacta.</p>
             <div id="specificFeedback" class="feedback"></div>
@@ -396,16 +168,13 @@
         </section>
     </div>
 
-    <div class="footer">
-        <a class="btn btn-ghost" href="/api/horarios/configuracion-ideal" target="_blank">Ver recomendacion de horarios</a>
-        <a class="btn btn-ghost" href="/api/horarios/exportar?formato=csv" target="_blank">Exportar horarios CSV</a>
-        <form method="POST" action="{{ route('portal.logout') }}">
-            @csrf
-            <button class="btn btn-primary" type="submit">Cerrar sesion</button>
-        </form>
+    <div class="actions">
+        <a class="btn" href="/api/horarios/configuracion-ideal" target="_blank">Ver recomendacion de horarios</a>
+        <a class="btn" href="/api/horarios/exportar?formato=csv" target="_blank">Exportar horarios CSV</a>
     </div>
-</div>
+@endsection
 
+@section('scripts')
 <script>
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
@@ -739,5 +508,4 @@
         }
     })();
 </script>
-</body>
-</html>
+@endsection
