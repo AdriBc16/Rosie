@@ -4,21 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Inscripcion extends Model
+class HorarioGenerado extends Model
 {
-    protected $table = 'inscripcion';
-    protected $primaryKey = 'id_inscripcion';
+    protected $table = 'horario_generado';
+    protected $primaryKey = 'id_horario';
     public $timestamps = false;
 
     protected $fillable = [
         'id_estudiante',
         'id_modulo',
-        'id_dm',
-        'id_materia',
         'estado',
-        'intentos',
-        'fecha_inscripcion',
+        'fecha_generacion',
     ];
 
     public function estudiante(): BelongsTo
@@ -31,13 +29,8 @@ class Inscripcion extends Model
         return $this->belongsTo(Modulo::class, 'id_modulo', 'id_modulo');
     }
 
-    public function docenteMateria(): BelongsTo
+    public function detalles(): HasMany
     {
-        return $this->belongsTo(DocenteMateria::class, 'id_dm', 'id_dm');
-    }
-
-    public function materia(): BelongsTo
-    {
-        return $this->belongsTo(Materia::class, 'id_materia', 'id_materia');
+        return $this->hasMany(DetalleHorario::class, 'id_horario', 'id_horario');
     }
 }

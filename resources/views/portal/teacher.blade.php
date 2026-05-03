@@ -4,7 +4,7 @@
 @section('breadcrumbs', 'Portal / Docente')
 @section('role_chip', 'Docente')
 @section('page_title', 'Panel docente')
-@section('page_subtitle', 'Tus asignaciones y estudiantes en una vista oscura y limpia.')
+@section('page_subtitle', 'Consulta tus asignaciones y estudiantes en formato libreta operativa.')
 
 @section('sidebar')
     <a href="{{ route('portal.teacher') }}" class="active">Home</a>
@@ -23,9 +23,9 @@
 <style>
     .subject-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
     .subject-card {
-        border:1px solid var(--line);
-        border-radius: var(--radius);
-        background: #1a1c20;
+        border:2px solid var(--line);
+        border-radius: 8px 12px 7px 13px;
+        background: #fff;
         padding: 12px;
         display:flex;
         flex-direction:column;
@@ -34,19 +34,20 @@
     .pill {
         display:inline-flex;
         width: fit-content;
-        border-radius:999px;
+        border-radius: 8px 11px 7px 12px;
         padding:4px 9px;
         font-size:.75rem;
         font-weight:700;
-        background: var(--accent-soft);
-        color: #93c5fd;
+        background: var(--postit);
+        color: #1a1a1a;
+        border: 2px solid var(--line);
     }
     .label { color: var(--muted); font-size: .86rem; }
     .status { color: var(--muted); font-weight: 700; }
     .empty {
-        border: 1px dashed var(--line);
-        border-radius: var(--radius);
-        background: #181a1e;
+        border: 2px dashed var(--line);
+        border-radius: 8px 11px 7px 12px;
+        background: #fffef8;
         padding: 14px;
         color: var(--muted);
         text-align: center;
@@ -58,20 +59,20 @@
         display: none;
         align-items: center;
         justify-content: center;
-        background: rgba(6, 8, 11, 0.7);
+        background: rgba(26,26,26,0.35);
         padding: 14px;
         z-index: 100;
     }
     .modal.show { display: flex; }
     .modal-card {
         width: min(760px, 100%);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: #191b1f;
+        border: 2px solid var(--line);
+        border-radius: 9px 14px 8px 12px;
+        background: #fffef8;
         padding: 14px;
     }
     .modal-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
-    .students { border:1px solid var(--line); border-radius: 12px; max-height: 320px; overflow: auto; }
+    .students { border:2px solid var(--line); border-radius: 8px 11px 7px 12px; max-height: 320px; overflow: auto; background:#fff; }
     .student-row { padding: 10px 11px; border-bottom:1px solid var(--line); }
     .student-row:last-child { border-bottom:0; }
     @media (max-width: 980px) { .subject-grid { grid-template-columns: 1fr; } }

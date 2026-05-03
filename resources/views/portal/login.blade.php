@@ -3,25 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoodOrder | Login</title>
+    <title>Campus Core | Login</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Caveat:wght@500;700&display=swap');
 
         :root {
-            --bg: #191919;
-            --sidebar: #202020;
-            --surface: #1f1f1f;
-            --surface-2: #232323;
-            --line: #2d2d2d;
-            --line-soft: #323232;
-            --text: #ebebeb;
-            --muted: #a3a3a3;
-            --accent: #2563eb;
-            --accent-soft: rgba(47,129,247,0.14);
-            --danger: #fca5a5;
-            --danger-bg: #3a1f1f;
-            --ok: #86efac;
-            --ok-bg: #163321;
+            --paper: #fafaf5;
+            --ink: #1a1a1a;
+            --postit: #FFEF9F;
+            --line: #1a1a1a;
+            --danger: #8a2a2a;
+            --ok: #2f7d3b;
         }
 
         * { box-sizing: border-box; }
@@ -29,145 +21,190 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            color: var(--text);
-            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--ink);
+            background:
+                linear-gradient(transparent 31px, rgba(26,26,26,0.045) 32px),
+                linear-gradient(90deg, transparent 31px, rgba(26,26,26,0.03) 32px),
+                var(--paper);
+            background-size: 32px 32px, 32px 32px, auto;
         }
 
         .shell {
             min-height: 100vh;
             display: grid;
-            grid-template-columns: 270px 1fr;
+            grid-template-columns: 250px 1fr;
+            max-width: 1300px;
+            margin: 0 auto;
+            border-left: 2px solid var(--line);
+            border-right: 2px solid var(--line);
         }
 
         .sidebar {
-            background: var(--sidebar);
-            border-right: 1px solid var(--line);
-            padding: 10px;
+            border-right: 2px solid var(--line);
+            padding: 14px 12px;
         }
 
         .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 10px;
-            border-radius: 8px;
+            border: 2px solid var(--line);
+            border-radius: 10px 6px 12px 8px;
+            padding: 10px;
+            background: #fffef8;
         }
 
-        .brand-badge {
-            width: 22px;
-            height: 22px;
-            border-radius: 6px;
-            border: 1px solid #3a3a3a;
-            background: #171717;
-            display: grid;
-            place-items: center;
+        .brand h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+
+        .brand p {
+            margin: 2px 0 0;
+            color: #555;
             font-size: 11px;
             font-weight: 700;
-            color: #d4d4d4;
+            text-transform: uppercase;
+            letter-spacing: .06em;
         }
-
-        .brand span { font-size: 14px; font-weight: 700; color: #f5f5f5; }
 
         .menu-label {
-            color: #8e8e8e;
+            color: #444;
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .08em;
+            font-weight: 800;
+            letter-spacing: .12em;
             text-transform: uppercase;
-            padding: 2px 10px;
-            margin-top: 8px;
+            padding: 0 10px;
+            margin: 12px 0 6px;
         }
 
         .menu-item {
             display: block;
-            color: #b2b2b2;
-            text-decoration: none;
-            border-radius: 7px;
-            padding: 7px 10px;
+            border: 2px solid transparent;
+            border-radius: 8px 12px 7px 10px;
+            padding: 9px 10px;
+            text-transform: uppercase;
             font-size: 13px;
-            font-weight: 600;
-            border: 1px solid transparent;
-            margin-top: 2px;
+            font-weight: 700;
+            color: var(--ink);
+            text-decoration: none;
+            margin-bottom: 6px;
         }
 
         .menu-item.active {
-            background: #2f2f2f;
-            color: #fff;
-            border-color: #3a3a3a;
+            border-color: var(--line);
+            background: var(--postit);
         }
 
         .main {
             display: grid;
             place-items: center;
-            padding: 18px;
+            padding: 24px;
         }
 
         .card {
-            width: min(460px, 100%);
-            border: 1px solid var(--line-soft);
-            border-radius: 12px;
-            background: linear-gradient(180deg, var(--surface-2), var(--surface));
-            padding: 16px;
+            position: relative;
+            width: min(500px, 100%);
+            border: 2px solid var(--line);
+            border-radius: 10px 14px 9px 15px;
+            background: #fffefb;
+            padding: 18px;
         }
 
-        h1 {
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-2deg);
+            width: 52px;
+            height: 16px;
+            background: rgba(255, 239, 159, 0.55);
+            border: 1px solid rgba(26,26,26,.28);
+        }
+
+        h2 {
             margin: 0;
-            font-size: 1.55rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
+            font-size: 1.7rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .01em;
         }
 
         .subtitle {
             margin: 6px 0 0;
-            color: var(--muted);
+            color: #555;
             font-size: 14px;
+            font-weight: 600;
         }
 
-        form { margin-top: 14px; display: grid; gap: 10px; }
+        form { margin-top: 15px; display: grid; gap: 11px; }
 
         .field { display: grid; gap: 6px; }
-        .field label { font-size: 12px; color: #9f9f9f; font-weight: 700; }
+
+        .field label {
+            font-size: 12px;
+            color: #3f3f3f;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
 
         .field input,
         .field select {
-            border: 1px solid #3a3a3a;
-            border-radius: 8px;
-            background: #171717;
-            color: #ececec;
+            border: 2px solid var(--line);
+            border-radius: 8px 12px 8px 11px;
+            background: #fff;
+            color: var(--ink);
             padding: 9px 10px;
             font-family: inherit;
             font-size: 14px;
             outline: none;
         }
 
-        .field input:focus,
-        .field select:focus {
-            border-color: #2f81f7;
-            box-shadow: 0 0 0 3px var(--accent-soft);
-        }
-
         .btn {
-            border-radius: 8px;
-            border: 1px solid #2563eb;
-            background: #2563eb;
-            color: #fff;
-            padding: 10px 12px;
+            border-radius: 8px 12px 8px 11px;
+            border: 2px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+            padding: 9px 12px;
             font-weight: 800;
-            font-size: 13px;
+            font-size: 12px;
             cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            transition: none;
         }
 
-        .btn:hover { background: #1d4ed8; border-color: #1d4ed8; }
+        .btn:hover {
+            background: var(--ink);
+            color: #fff;
+        }
 
-        .hint { margin: 0; color: var(--muted); font-size: 12px; }
-        .alert { border-radius: 8px; padding: 9px 10px; font-size: 13px; margin-top: 10px; border: 1px solid; }
-        .alert.error { background: var(--danger-bg); color: var(--danger); border-color: #5b2a2a; }
-        .alert.ok { background: var(--ok-bg); color: var(--ok); border-color: #1f4f30; }
+        .hint {
+            margin: 0;
+            color: #555;
+            font-size: 18px;
+            font-family: 'Caveat', cursive;
+        }
+
+        .alert {
+            border: 2px solid var(--line);
+            border-radius: 8px 12px 7px 11px;
+            padding: 9px 10px;
+            font-size: 13px;
+            margin-top: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .alert.error { color: var(--danger); background: #fff; }
+        .alert.ok { color: var(--ok); background: #fff; }
 
         @media (max-width: 940px) {
-            .shell { grid-template-columns: 1fr; }
-            .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+            .shell { grid-template-columns: 1fr; border-left: 0; border-right: 0; }
+            .sidebar { border-right: 0; border-bottom: 2px solid var(--line); }
             .main { padding: 14px; }
         }
     </style>
@@ -176,21 +213,20 @@
 <div class="shell">
     <aside class="sidebar">
         <div class="brand">
-            <div class="brand-badge">N</div>
-            <span>jocagu's Notion</span>
+            <h1>CAMPUS_CORE</h1>
+            <p>Admin Portal</p>
         </div>
 
         <div class="menu-label">Recents</div>
-        <a class="menu-item active" href="#">LOGIN</a>
-        <a class="menu-item" href="#">EXAMEN</a>
-        <a class="menu-item" href="#">DOCENTE</a>
-        <a class="menu-item" href="#">ESTUDIANTE</a>
+        <a class="menu-item active" href="#">Dashboard</a>
+        <a class="menu-item" href="#">Schedule</a>
+        <a class="menu-item" href="#">Resources</a>
     </aside>
 
     <main class="main">
         <section class="card">
-            <h1>Acceso al portal</h1>
-            <p class="subtitle">Ingresa con tu perfil para abrir el workspace.</p>
+            <h2>Acceso al portal</h2>
+            <p class="subtitle">Operational login / academic management.</p>
 
             @if (session('auth_error'))
                 <div class="alert error">{{ session('auth_error') }}</div>
@@ -223,7 +259,7 @@
                 </div>
 
                 <button class="btn" type="submit">Entrar</button>
-                <p class="hint">Password demo seed: <strong>UPB123</strong></p>
+                <p class="hint">Nota: password demo seed -> UPB123</p>
             </form>
         </section>
     </main>

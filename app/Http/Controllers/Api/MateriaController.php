@@ -8,12 +8,13 @@ use App\Http\Requests\MateriaRequest;
 use App\Models\Materia;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MateriaController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Materia::query();
+        $query = Materia::query()->with(['carrera', 'semestre']);
 
         if ($request->filled('take')) {
             return response()->json($query->take((int) $request->integer('take'))->get());
@@ -25,6 +26,7 @@ class MateriaController extends Controller
     public function show(int $id): JsonResponse
     {
         $record = Materia::query()
+            ->with(['carrera', 'semestre'])
             ->where('id_materia', $id)
             ->firstOrFail();
 
@@ -34,6 +36,7 @@ class MateriaController extends Controller
     public function store(MateriaRequest $request): JsonResponse
     {
         $record = Materia::query()->create($request->validated());
+        $record->load(['carrera']);
 
         return response()->json($record, 201);
     }
@@ -45,6 +48,7 @@ class MateriaController extends Controller
             ->firstOrFail();
 
         $record->update($request->validated());
+        $record->load(['carrera']);
 
         return response()->json($record);
     }
@@ -66,12 +70,18 @@ class MateriaController extends Controller
     public function ingesta(MateriaIngestaRequest $request): JsonResponse
     {
         $payload = $request->validated();
+        $defaultCarreraId = (int) DB::table('carrera')->min('id_carrera');
 
         $materias = collect($payload['materias'])
-            ->map(function (array $item) {
+            ->map(function (array $item) use ($defaultCarreraId) {
+                $idCarrera = $item['id_carrera'] ?? $defaultCarreraId;
+
                 return Materia::updateOrCreate(
                     ['nombre' => $item['nombre']],
-                    ['nombre' => $item['nombre']]
+                    [
+                        'nombre' => $item['nombre'],
+                        'id_carrera' => $idCarrera,
+                    ]
                 );
             })
             ->values();

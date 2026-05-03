@@ -4,7 +4,7 @@
 @section('breadcrumbs', 'Portal / Jefe de carrera')
 @section('role_chip', 'Jefe')
 @section('page_title', 'Panel de coordinacion')
-@section('page_subtitle', 'Gestiona materias, asignaciones y disponibilidad docente desde el portal.')
+@section('page_subtitle', 'Operational Overview & Academic Management')
 
 @section('sidebar')
     <a href="{{ route('portal.head') }}" class="active">Home</a>
@@ -22,12 +22,12 @@
 
 @section('page_styles')
 <style>
-    .big { margin: 0; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; }
+    .big { margin: 0; font-size: 2rem; font-weight: 900; letter-spacing: -0.02em; }
     .availability, .subject-list { display:grid; gap:8px; max-height: 320px; overflow:auto; padding-right: 2px; }
     .slot {
-        border: 1px solid var(--line-soft);
-        border-radius: 10px;
-        background: var(--surface-soft);
+        border: 2px solid var(--line);
+        border-radius: 7px 12px 8px 10px;
+        background: #fff;
         padding: 9px 10px;
     }
     .slot .tag {
@@ -38,12 +38,12 @@
         font-weight:700;
         margin-bottom:5px;
     }
-    .tag.busy { background: rgba(251, 146, 60, .16); color: #fdba74; }
-    .tag.pref { background: var(--accent-soft); color: #93c5fd; }
+    .tag.busy { background: #1a1a1a; color: #f4f4f4; }
+    .tag.pref { background: var(--postit); color: #242424; border: 2px solid var(--line); }
     .empty-state {
-        border: 1px dashed var(--line-soft);
-        border-radius: 10px;
-        background: #1c1e21;
+        border: 2px dashed var(--line);
+        border-radius: 8px 11px 7px 12px;
+        background: #fffef8;
         color: var(--muted);
         padding: 12px;
         text-align: center;
@@ -51,7 +51,7 @@
     }
     .specific-layout { display:grid; grid-template-columns: 320px 1fr; gap: 12px; }
     .specific-sidebar { display:grid; align-content:start; gap:8px; }
-    .actions { margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap; }
+    .actions { margin-top: 20px; display:flex; gap:10px; flex-wrap:wrap; }
     @media (max-width: 1040px) { .specific-layout { grid-template-columns: 1fr; } }
 </style>
 @endsection
@@ -59,19 +59,19 @@
 @section('content')
     <div class="grid-3">
         <section class="card">
-            <h2>Docentes</h2>
+            <h2>Teachers</h2>
             <p class="big">{{ $teachersCount }}</p>
             <p class="muted">Registrados en tu universidad.</p>
         </section>
 
         <section class="card">
-            <h2>Estudiantes</h2>
+            <h2>Students</h2>
             <p class="big">{{ $studentsCount }}</p>
             <p class="muted">Activos en tu universidad.</p>
         </section>
 
         <section class="card">
-            <h2>Modulos</h2>
+            <h2>Modules</h2>
             <p class="big">{{ $modulosCount }}</p>
             <p class="muted">Total de modulos cargados.</p>
         </section>

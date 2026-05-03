@@ -13,7 +13,7 @@ class DocenteController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Docente::query()->with(['universidad']);
+        $query = Docente::query()->with(['universidad', 'carreras']);
 
         if ($request->filled('take')) {
             return response()->json($query->take((int) $request->integer('take'))->get());
@@ -25,7 +25,7 @@ class DocenteController extends Controller
     public function show(int $id): JsonResponse
     {
         $record = Docente::query()
-            ->with(['universidad'])
+            ->with(['universidad', 'carreras'])
             ->where('id_docente', $id)
             ->firstOrFail();
 
@@ -34,10 +34,15 @@ class DocenteController extends Controller
 
     public function store(DocenteRequest $request): JsonResponse
     {
-        $data = $this->hashPasswordIfNeeded($request->validated());
+        $payload = $request->validated();
+        $carreraIds = $payload['carrera_ids'] ?? [];
+        unset($payload['carrera_ids']);
+
+        $data = $this->hashPasswordIfNeeded($payload);
 
         $record = Docente::query()->create($data);
-        $record->load(['universidad']);
+        $record->carreras()->sync($carreraIds);
+        $record->load(['universidad', 'carreras']);
 
         return response()->json($record, 201);
     }
@@ -48,10 +53,17 @@ class DocenteController extends Controller
             ->where('id_docente', $id)
             ->firstOrFail();
 
-        $data = $this->hashPasswordIfNeeded($request->validated());
+        $payload = $request->validated();
+        $carreraIds = $payload['carrera_ids'] ?? null;
+        unset($payload['carrera_ids']);
+
+        $data = $this->hashPasswordIfNeeded($payload);
 
         $record->update($data);
-        $record->load(['universidad']);
+        if (is_array($carreraIds)) {
+            $record->carreras()->sync($carreraIds);
+        }
+        $record->load(['universidad', 'carreras']);
 
         return response()->json($record);
     }
