@@ -106,10 +106,14 @@ export default function Login() {
               </button>
               
               <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                <p className="muted" style={{ fontSize: '11px', fontWeight: 600 }}>
+                <Link to="/register" className="muted" style={{ fontSize: '13px', textDecoration: 'none' }}>
+                  ¿No tienes cuenta? <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Crea una ahora</span>
+                </Link>
+                <p className="muted" style={{ fontSize: '11px', fontWeight: 600, marginTop: '12px' }}>
                   Password default: UPB123
                 </p>
               </div>
+
             </div>
           </form>
         </section>

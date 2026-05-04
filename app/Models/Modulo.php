@@ -13,11 +13,13 @@ class Modulo extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'nombre',
         'fecha_inicio',
         'fecha_final',
         'id_semestre',
         'creditos',
     ];
+
 
     public function semestre(): BelongsTo
     {

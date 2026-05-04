@@ -1,8 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import PortalLayout from './layouts/PortalLayout';
+
 import StudentDashboard from './pages/StudentDashboard';
+import StudentSchedule from './pages/StudentSchedule';
 import TeacherDashboard from './pages/TeacherDashboard';
 import HeadDashboard from './pages/HeadDashboard';
 import './index.css';
@@ -21,11 +24,18 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           <Route path="/panel/estudiante" element={
             <ProtectedRoute allowedRole="estudiante">
               <StudentDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/panel/estudiante/horario" element={
+            <ProtectedRoute allowedRole="estudiante">
+              <StudentSchedule />
             </ProtectedRoute>
           } />
 

@@ -45,6 +45,7 @@ export default function HeadDashboard() {
 
   const [enrollForm, setEnrollForm] = useState({ id_estudiante: '', id_materia: '', id_modulo: '' });
   const [enrollFeedback, setEnrollFeedback] = useState({ text: '', ok: false });
+  const [studentInscriptions, setStudentInscriptions] = useState([]);
 
   const [newMateria, setNewMateria] = useState({ nombre: '', horas_semanales: 1, año_academico: 1 });
   const [materiaFeedback, setMateriaFeedback] = useState({ text: '', ok: false });
@@ -71,6 +72,14 @@ export default function HeadDashboard() {
     }
   }, [assignForm.id_docente]);
 
+  useEffect(() => {
+    if (enrollForm.id_estudiante) {
+        loadStudentInscriptions(enrollForm.id_estudiante);
+    } else {
+        setStudentInscriptions([]);
+    }
+  }, [enrollForm.id_estudiante]);
+
   const loadCatalog = async () => {
     try {
       const res = await axios.get('/portal/api/jefe/catalogo');
@@ -90,8 +99,25 @@ export default function HeadDashboard() {
     }
   };
 
+  const loadStudentInscriptions = async (id) => {
+    try {
+      const res = await axios.get(`/portal/api/jefe/personas/estudiante/${id}/materias`);
+      setStudentInscriptions(res.data.data.materias || []);
+    } catch {
+      setStudentInscriptions([]);
+    }
+  };
+
   const handleAssign = async (e) => {
     e.preventDefault();
+    
+    // Validacion local de disponibilidad
+    const selectedBloque = catalog.bloques?.find(b => b.id_bloque === parseInt(assignForm.id_bloque));
+    if (selectedBloque && !teacherDisp.includes(selectedBloque.nombre)) {
+        setAssignFeedback({ text: 'Error: El docente no esta disponible en el bloque seleccionado.', ok: false });
+        return;
+    }
+
     try {
       const res = await axios.post('/portal/api/jefe/asignaciones', assignForm);
       setAssignFeedback({ text: res.data.message, ok: true });
@@ -108,11 +134,13 @@ export default function HeadDashboard() {
       const res = await axios.post('/portal/api/jefe/inscripciones', enrollForm);
       setEnrollFeedback({ text: res.data.message, ok: true });
       setEnrollForm({ id_estudiante: '', id_materia: '', id_modulo: '' });
+      setStudentInscriptions([]);
       loadCatalog();
     } catch (err) {
       setEnrollFeedback({ text: err.response?.data?.message || err.message, ok: false });
     }
   };
+
 
   const handleCreateMateria = async (e) => {
     e.preventDefault();
@@ -199,7 +227,7 @@ export default function HeadDashboard() {
                     <tr key={d.id_docente}>
                       <td style={{ padding: '8px', borderBottom: '1px solid #1e1e2e' }}>{d.nombre} {d.apellido || ''}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #1e1e2e', color: '#8f8fb0' }}>{d.correo}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #1e1e2e' }}>{d.es_jefe_carrera ? '✓' : ''}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #1e1e2e' }}>{d.es_jefe_carrera ? 'Activo' : ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -232,39 +260,36 @@ export default function HeadDashboard() {
                 ))}
               </select>
             </div>
-            <div className="field">
-              <label htmlFor="searchModulo">Módulo (opcional)</label>
-              <select id="searchModulo" value={searchModulo} onChange={(e) => setSearchModulo(e.target.value)}>
-                <option value="">Todos</option>
-                {catalog.modulos.map(m => (
-                  <option key={m.id_modulo} value={m.id_modulo}>
-                    Módulo {m.id_modulo} ({m.fecha_inicio} → {m.fecha_final})
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
           <button className="btn btn-primary" type="button" onClick={handleSearch}>Buscar</button>
+
 
           {searchLoading && <p className="muted" style={{ marginTop: '12px' }}>Cargando...</p>}
           {searchError   && <p style={{ color: '#ff6b93', marginTop: '12px' }}>{searchError}</p>}
 
           {searchResult && (
             <div style={{ marginTop: '16px' }}>
-              <p className="muted"><strong>{searchResult.persona?.nombre}</strong> — {searchResult.persona?.correo}</p>
+              <p className="muted"><strong>{searchResult.persona?.nombre}</strong> - {searchResult.persona?.correo}</p>
               <div className="subject-grid" style={{ marginTop: '12px' }}>
                 {searchResult.materias?.length === 0
                   ? <div className="empty">Sin materias para este filtro.</div>
                   : searchResult.materias?.map((item, idx) => (
                     <article key={idx} className="subject-card">
-                      <span className="pill">{item.fecha_inicio || '--'} → {item.fecha_final || '--'}</span>
-                      <span className="pill" style={{ background: '#4c1d95' }}>{item.bloque || 'No bloque'}</span>
+                      <span className="pill">{item.modulo_nombre || 'Módulo'}</span>
+                      <span className="pill" style={{ background: '#4c1d95' }}>{item.bloque || 'Sin horario'}</span>
+
                       <strong>{item.materia || 'Sin nombre'}</strong>
-                      {item.aula && <span className="label">Aula: {item.aula}</span>}
-                      {item.estado && <span className="label">Estado: {item.estado}</span>}
-                      {item.estudiantes_count !== undefined && <span className="label">Inscritos: {item.estudiantes_count}</span>}
+                      <div className="label">
+                         <span className="muted" style={{ display: 'block', fontSize: '12px' }}>
+                           {item.fecha_inicio || '--'} — {item.fecha_final || '--'}
+                         </span>
+                         {item.aula && <span className="label">Aula: {item.aula}</span>}
+                         {item.estado && <span className="label">Estado: {item.estado}</span>}
+                         {item.estudiantes_count !== undefined && <span className="label">Inscritos: {item.estudiantes_count}</span>}
+                      </div>
                     </article>
                   ))
+
                 }
               </div>
             </div>
@@ -307,52 +332,59 @@ export default function HeadDashboard() {
           <h2>Asignar docente a materia</h2>
           <form onSubmit={handleAssign}>
             <div className="field">
-              <label htmlFor="assignDocente">Docente</label>
-              <select id="assignDocente" value={assignForm.id_docente} onChange={(e) => setAssignForm(p => ({ ...p, id_docente: e.target.value }))} required>
-                <option value="">Selecciona docente</option>
-                {catalog.docentes.filter(d => !d.es_jefe_carrera).map(d => (
-                  <option key={d.id_docente} value={d.id_docente}>{d.nombre} {d.apellido || ''}</option>
-                ))}
-              </select>
-              {teacherDisp.length > 0 && (
-                <small className="muted" style={{ display: 'block', marginTop: '4px' }}>
-                  Disponible en bloques: {teacherDisp.join(', ')}
-                </small>
-              )}
-            </div>
-            <div className="field">
               <label htmlFor="assignMateria">Materia</label>
               <select id="assignMateria" value={assignForm.id_materia} onChange={(e) => setAssignForm(p => ({ ...p, id_materia: e.target.value }))} required>
                 <option value="">Selecciona materia</option>
-                {catalog.materias.map(m => (
-                  <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
-                ))}
+                {catalog.materias
+                  .filter(m => !catalog.asignacionesActuales?.some(a => a.id_materia === m.id_materia))
+                  .map(m => (
+                    <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
+                  ))
+                }
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="assignModulo">Módulo</label>
-              <select id="assignModulo" value={assignForm.id_modulo} onChange={(e) => setAssignForm(p => ({ ...p, id_modulo: e.target.value }))} required>
-                <option value="">Selecciona módulo</option>
-                {catalog.modulos.map(m => (
-                  <option key={m.id_modulo} value={m.id_modulo}>
-                    Módulo {m.id_modulo} ({m.creditos} cr) — {m.fecha_inicio} → {m.fecha_final}
-                  </option>
-                ))}
-              </select>
+              {catalog.materias.length > (catalog.materias.filter(m => !catalog.asignacionesActuales?.some(a => a.id_materia === m.id_materia)).length) && (
+                <small className="muted">Algunas materias ya tienen docente asignado.</small>
+              )}
             </div>
             
             <div className="grid-2">
               <div className="field">
-                <label htmlFor="assignBloque">Bloque Horario</label>
+                <label htmlFor="assignBloque">Horario</label>
                 <select id="assignBloque" value={assignForm.id_bloque} onChange={(e) => setAssignForm(p => ({ ...p, id_bloque: e.target.value }))} required>
-                  <option value="">Selecciona Bloque</option>
+                  <option value="">Selecciona Horario</option>
                   {catalog.bloques?.map(b => (
                     <option key={b.id_bloque} value={b.id_bloque}>
-                      Bloque {b.nombre} ({b.hora_inicio.substring(0,5)} - {b.hora_fin.substring(0,5)})
+                      {b.nombre} ({b.hora_inicio.substring(0,5)} - {b.hora_fin.substring(0,5)})
                     </option>
                   ))}
                 </select>
               </div>
+
+              <div className="field">
+                <label htmlFor="assignDocente">Docente</label>
+                <select id="assignDocente" value={assignForm.id_docente} onChange={(e) => setAssignForm(p => ({ ...p, id_docente: e.target.value }))} required>
+                  <option value="">Selecciona docente</option>
+                  {catalog.docentes
+                    .filter(d => !d.es_jefe_carrera)
+                    .filter(d => {
+                        if (!assignForm.id_bloque) return true;
+                        // Ocultar si ya tiene clase en este bloque en el modulo activo
+                        return !catalog.asignacionesActuales?.some(a => a.id_docente === d.id_docente && a.id_bloque === parseInt(assignForm.id_bloque));
+                    })
+                    .map(d => (
+                      <option key={d.id_docente} value={d.id_docente}>{d.nombre} {d.apellido || ''}</option>
+                    ))
+                  }
+                </select>
+                {teacherDisp.length > 0 && (
+                  <small className="muted" style={{ display: 'block', marginTop: '4px' }}>
+                    Disponible en: {teacherDisp.join(', ')}
+                  </small>
+                )}
+              </div>
+            </div>
+
+            <div className="grid-2">
               <div className="field">
                 <label htmlFor="assignAula">Aula</label>
                 <select id="assignAula" value={assignForm.id_aula} onChange={(e) => setAssignForm(p => ({ ...p, id_aula: e.target.value }))} required>
@@ -392,21 +424,16 @@ export default function HeadDashboard() {
               <label htmlFor="enrollMateria">Materia</label>
               <select id="enrollMateria" value={enrollForm.id_materia} onChange={(e) => setEnrollForm(p => ({ ...p, id_materia: e.target.value }))} required>
                 <option value="">Selecciona materia</option>
-                {catalog.materias.map(m => (
-                  <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
-                ))}
+                {catalog.materias
+                  .filter(m => !studentInscriptions.some(i => i.materia === m.nombre))
+                  .map(m => (
+                    <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>
+                  ))
+                }
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="enrollModulo">Módulo</label>
-              <select id="enrollModulo" value={enrollForm.id_modulo} onChange={(e) => setEnrollForm(p => ({ ...p, id_modulo: e.target.value }))} required>
-                <option value="">Selecciona módulo</option>
-                {catalog.modulos.map(m => (
-                  <option key={m.id_modulo} value={m.id_modulo}>
-                    Módulo {m.id_modulo} ({m.creditos} cr) — {m.fecha_inicio} → {m.fecha_final}
-                  </option>
-                ))}
-              </select>
+              {enrollForm.id_estudiante && catalog.materias.length > (catalog.materias.filter(m => !studentInscriptions.some(i => i.materia === m.nombre)).length) && (
+                <small className="muted">Se han ocultado materias ya inscritas por este alumno.</small>
+              )}
             </div>
             <button className="btn btn-primary" type="submit">Inscribir</button>
           </form>
@@ -421,3 +448,4 @@ export default function HeadDashboard() {
     </PortalLayout>
   );
 }
+

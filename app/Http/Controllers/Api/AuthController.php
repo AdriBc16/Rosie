@@ -12,34 +12,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
-use OpenApi\Attributes as OA;
+
 
 class AuthController extends Controller
 {
     private const ACCESS_TOKEN_TTL_MINUTES = 60;
     private const REFRESH_TOKEN_TTL_DAYS = 30;
 
-    #[OA\Post(
-        path: '/api/auth/login',
-        summary: 'Login con correo y password',
-        tags: ['Auth'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['correo', 'password', 'role'],
-                properties: [
-                    new OA\Property(property: 'correo', type: 'string', format: 'email', example: 'demo@correo.com'),
-                    new OA\Property(property: 'password', type: 'string', example: 'secret123'),
-                    new OA\Property(property: 'role', type: 'string', enum: ['docente', 'estudiante'], example: 'docente'),
-                    new OA\Property(property: 'device_name', type: 'string', example: 'postman'),
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 200, description: 'Login exitoso'),
-            new OA\Response(response: 401, description: 'Credenciales invalidas'),
-        ]
-    )]
     public function login(AuthLoginRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -75,24 +54,6 @@ class AuthController extends Controller
         ]);
     }
 
-    #[OA\Post(
-        path: '/api/auth/refresh',
-        summary: 'Renovar access token con refresh token',
-        tags: ['Auth'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['refresh_token'],
-                properties: [
-                    new OA\Property(property: 'refresh_token', type: 'string'),
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 200, description: 'Token renovado'),
-            new OA\Response(response: 401, description: 'Refresh token invalido'),
-        ]
-    )]
     public function refresh(AuthRefreshRequest $request): JsonResponse
     {
         $tokenValue = $request->validated()['refresh_token'];
@@ -138,16 +99,6 @@ class AuthController extends Controller
         ]);
     }
 
-    #[OA\Get(
-        path: '/api/auth/me',
-        summary: 'Datos del usuario autenticado',
-        security: [['sanctum' => []]],
-        tags: ['Auth'],
-        responses: [
-            new OA\Response(response: 200, description: 'Usuario autenticado'),
-            new OA\Response(response: 401, description: 'No autenticado'),
-        ]
-    )]
     public function me(Request $request): JsonResponse
     {
         return response()->json([
@@ -155,15 +106,6 @@ class AuthController extends Controller
         ]);
     }
 
-    #[OA\Post(
-        path: '/api/auth/logout',
-        summary: 'Cerrar sesion del token actual',
-        security: [['sanctum' => []]],
-        tags: ['Auth'],
-        responses: [
-            new OA\Response(response: 200, description: 'Sesion cerrada'),
-        ]
-    )]
     public function logout(Request $request): JsonResponse
     {
         $request->user()?->currentAccessToken()?->delete();
@@ -173,15 +115,6 @@ class AuthController extends Controller
         ]);
     }
 
-    #[OA\Post(
-        path: '/api/auth/logout-all',
-        summary: 'Cerrar todas las sesiones del usuario',
-        security: [['sanctum' => []]],
-        tags: ['Auth'],
-        responses: [
-            new OA\Response(response: 200, description: 'Sesiones cerradas'),
-        ]
-    )]
     public function logoutAll(Request $request): JsonResponse
     {
         $request->user()?->tokens()?->delete();

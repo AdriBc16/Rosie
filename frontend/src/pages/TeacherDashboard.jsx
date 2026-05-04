@@ -110,8 +110,8 @@ export default function TeacherDashboard() {
         </section>
 
         <section className="card">
-          <h2>Mi Disponibilidad</h2>
-          <p className="muted" style={{ marginBottom: '10px' }}>Selecciona los bloques horarios en los que puedes dar clases:</p>
+          <h2>Mis Horarios Disponibles</h2>
+          <p className="muted" style={{ marginBottom: '10px' }}>Selecciona los horarios en los que puedes dar clases:</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {allBlocks.map(b => (
               <label key={b.id_bloque} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
@@ -134,9 +134,10 @@ export default function TeacherDashboard() {
             onClick={saveDisponibilidad}
             disabled={savingDisp}
           >
-            {savingDisp ? 'Guardando...' : 'Guardar Disponibilidad'}
+            {savingDisp ? 'Guardando...' : 'Guardar Horarios'}
           </button>
         </section>
+
       </div>
 
       <section style={{ marginTop: '12px' }}>
@@ -153,23 +154,27 @@ export default function TeacherDashboard() {
           {assignments.map(item => (
             <article key={item.id_dm} className="subject-card">
               <span className="pill">
-                {item.modulo?.fecha_inicio
-                  ? `${item.modulo.fecha_inicio} → ${item.modulo.fecha_final}`
-                  : 'Sin módulo'}
+                {item.modulo?.nombre || 'Módulo'}
               </span>
+
               <strong>{item.materia?.nombre || 'Materia sin nombre'}</strong>
-              <span className="label">
+              <div className="label">
+                <span className="muted" style={{ display: 'block', marginBottom: '4px' }}>
+                    {item.modulo?.fecha_inicio} — {item.modulo?.fecha_final}
+                </span>
                 Estudiantes inscritos: {item.estudiantes_count ?? 0}
-              </span>
+              </div>
               <button
                 className="btn btn-primary"
                 type="button"
+                style={{ marginTop: '10px' }}
                 onClick={() => showStudents(item.id_dm)}
               >
                 Ver estudiantes
               </button>
             </article>
           ))}
+
         </div>
       </section>
 
