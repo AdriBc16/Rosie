@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HorarioGenerado extends Model
 {
-    protected $table = 'horario_generado';
+    protected $table = 'horarios_generados';
     protected $primaryKey = 'id_horario';
     public $timestamps = false;
 
@@ -18,6 +18,13 @@ class HorarioGenerado extends Model
         'estado',
         'fecha_generacion',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'fecha_generacion' => 'datetime',
+        ];
+    }
 
     public function estudiante(): BelongsTo
     {

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Semestre extends Model
 {
-    protected $table = 'semestre';
+    protected $table = 'semestres';
     protected $primaryKey = 'id_semestre';
     public $timestamps = false;
 

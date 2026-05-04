@@ -13,13 +13,16 @@ class DisponibilidadDocente extends Model
 
     protected $fillable = [
         'id_docente',
-        'dia_semana',
-        'hora_inicio',
-        'hora_fin',
+        'id_bloque',
     ];
 
     public function docente(): BelongsTo
     {
         return $this->belongsTo(Docente::class, 'id_docente', 'id_docente');
+    }
+
+    public function bloque(): BelongsTo
+    {
+        return $this->belongsTo(BloqueHorario::class, 'id_bloque', 'id_bloque');
     }
 }

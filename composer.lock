@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "951c1689e64ddeafbbaa9314f587ccc0",
+    "content-hash": "5e4682dfc0d1c4a025b28d581cf045e5",
     "packages": [
         {
             "name": "brick/math",
@@ -1135,11 +1135,17 @@
         },
         {
             "name": "ibex/crud-generator",
-            "version": "dev-master",
-            "dist": {
-                "type": "path",
-                "url": "packages/ibex-crud-generator",
+            "version": "v2.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/awais-vteams/laravel-crud-generator.git",
                 "reference": "ca88d9c2796b585a50fc9f3493b94e6f6a881b35"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/awais-vteams/laravel-crud-generator/zipball/ca88d9c2796b585a50fc9f3493b94e6f6a881b35",
+                "reference": "ca88d9c2796b585a50fc9f3493b94e6f6a881b35",
+                "shasum": ""
             },
             "require": {
                 "laravel/framework": "^10.30|^11.44|^12.2|^13.1",
@@ -1158,6 +1164,7 @@
                     "Ibex\\CrudGenerator\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -1180,9 +1187,21 @@
                 "livewire",
                 "tailwind css"
             ],
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/awais-vteams/laravel-crud-generator/issues",
+                "source": "https://github.com/awais-vteams/laravel-crud-generator/tree/v2.1.9"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/awais-vteams",
+                    "type": "github"
+                },
+                {
+                    "url": "https://ko-fi.com/mawais",
+                    "type": "ko_fi"
+                }
+            ],
+            "time": "2026-03-28T09:14:24+00:00"
         },
         {
             "name": "laravel/framework",
@@ -8764,5 +8783,5 @@
         "php": "^8.3"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }

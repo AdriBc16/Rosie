@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Prerequisito extends Model
 {
-    protected $table = 'prerequisito';
+    protected $table = 'prerrequisitos';
     protected $primaryKey = 'id_prerrequisito';
     public $timestamps = false;
 

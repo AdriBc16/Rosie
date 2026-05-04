@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BloqueHorario extends Model
 {
-    protected $table = 'bloque_horario';
+    protected $table = 'bloques_horarios';
     protected $primaryKey = 'id_bloque';
     public $timestamps = false;
 

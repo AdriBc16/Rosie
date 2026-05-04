@@ -16,11 +16,9 @@ class RedirectIfPortalAuthenticated
             return $next($request);
         }
 
-        return match ($portalUser['role']) {
-            'estudiante' => redirect()->route('portal.student'),
-            'docente' => redirect()->route('portal.teacher'),
-            'jefe' => redirect()->route('portal.head'),
-            default => redirect()->route('portal.login'),
-        };
+        return response()->json([
+            'message' => 'Ya estas autenticado.',
+            'role' => $portalUser['role']
+        ]);
     }
 }

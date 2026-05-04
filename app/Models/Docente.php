@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -12,17 +10,14 @@ class Docente extends Authenticatable
 {
     use HasApiTokens;
 
-    protected $table = 'docente';
+    protected $table = 'docentes';
     protected $primaryKey = 'id_docente';
     public $timestamps = false;
 
     protected $fillable = [
         'nombre',
         'apellido',
-        'id_universidad',
-        'id_carrera',
         'es_jefe_carrera',
-        'descripcion',
         'correo',
         'password',
     ];
@@ -34,13 +29,9 @@ class Docente extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password' => 'hashed',
+            'password'        => 'hashed',
+            'es_jefe_carrera' => 'boolean',
         ];
-    }
-
-    public function universidad(): BelongsTo
-    {
-        return $this->belongsTo(Universidad::class, 'id_universidad', 'id_universidad');
     }
 
     public function docenteMaterias(): HasMany
@@ -48,20 +39,13 @@ class Docente extends Authenticatable
         return $this->hasMany(DocenteMateria::class, 'id_docente', 'id_docente');
     }
 
-    public function horasLibresDocentes(): HasMany
+    public function disponibilidades(): HasMany
     {
-        return $this->hasMany(HorasLibresDoc::class, 'id_docente', 'id_docente');
+        return $this->hasMany(DisponibilidadDocente::class, 'id_docente', 'id_docente');
     }
 
-    public function carreras(): BelongsToMany
+    public function detalleHorarios(): HasMany
     {
-        return $this->belongsToMany(
-            Carrera::class,
-            'carrera_docente',
-            'id_docente',
-            'id_carrera',
-            'id_docente',
-            'id_carrera'
-        );
+        return $this->hasMany(DetalleHorario::class, 'id_docente', 'id_docente');
     }
 }

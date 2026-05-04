@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class HistorialMateria extends Model
 {
-    protected $table = 'historial_materia';
+    protected $table = 'historial_materias';
     protected $primaryKey = 'id_historial';
     public $timestamps = false;
 

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DetalleHorario extends Model
 {
-    protected $table = 'detalle_horario';
+    protected $table = 'detalle_horarios';
     protected $primaryKey = 'id_detalle';
     public $timestamps = false;
 
@@ -15,10 +15,11 @@ class DetalleHorario extends Model
         'id_horario',
         'id_materia',
         'id_docente',
-        'id_horario_bloque',
+        'id_bloque',
+        'id_aula',
     ];
 
-    public function horario(): BelongsTo
+    public function horarioGenerado(): BelongsTo
     {
         return $this->belongsTo(HorarioGenerado::class, 'id_horario', 'id_horario');
     }
@@ -35,6 +36,11 @@ class DetalleHorario extends Model
 
     public function bloque(): BelongsTo
     {
-        return $this->belongsTo(BloqueHorario::class, 'id_horario_bloque', 'id_bloque');
+        return $this->belongsTo(BloqueHorario::class, 'id_bloque', 'id_bloque');
+    }
+
+    public function aula(): BelongsTo
+    {
+        return $this->belongsTo(Aula::class, 'id_aula', 'id_aula');
     }
 }

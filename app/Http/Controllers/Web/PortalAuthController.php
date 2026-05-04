@@ -3,171 +3,163 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Web\HeadAssignMateriaRequest;
-use App\Http\Requests\Web\HeadCreateMateriaRequest;
 use App\Http\Requests\Web\PortalLoginRequest;
 use App\Models\Docente;
 use App\Models\DocenteMateria;
 use App\Models\Estudiante;
-use App\Models\Horario;
-use App\Models\HorasLibresDoc;
-use App\Models\Materia;
-use App\Models\Modulo;
 use App\Models\Inscripcion;
-use App\Models\Universidad;
+use App\Models\Modulo;
+use App\Models\Materia;
+use App\Models\BloqueHorario;
+use App\Models\DisponibilidadDocente;
+use App\Models\HorarioGenerado;
+use App\Models\DetalleHorario;
+use App\Models\Aula;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 
 class PortalAuthController extends Controller
 {
-    public function showLogin(): View
-    {
-        return view('portal.login');
-    }
-
-    public function login(PortalLoginRequest $request): RedirectResponse
+    public function login(PortalLoginRequest $request): JsonResponse
     {
         $credentials = $request->validated();
-
-        $role = $credentials['role'];
-        $correo = $credentials['correo'];
+        $role     = $credentials['role'];
+        $correo   = $credentials['correo'];
         $password = $credentials['password'];
 
         if ($role === 'estudiante') {
             $user = Estudiante::query()->where('correo', $correo)->first();
 
-            if (!$user || !$user->password || !Hash::check($password, $user->password)) {
-                return back()->withInput()->with('auth_error', 'Credenciales invalidas para estudiante.');
+            if (!$user || !Hash::check($password, $user->password)) {
+                return response()->json(['message' => 'Credenciales invalidas.'], 401);
             }
 
             $this->storePortalSession($request, [
-                'role' => 'estudiante',
-                'id' => $user->id_estudiante,
-                'name' => $user->nombre,
+                'role'  => 'estudiante',
+                'id'    => $user->id_estudiante,
+                'name'  => trim("{$user->nombre} {$user->apellido}"),
                 'email' => $user->correo,
-                'university_id' => $user->id_universidad,
-                'module_id' => $user->id_modulo,
+                'es_traspaso' => $user->es_traspaso,
             ]);
 
-            return redirect()->route('portal.student');
+            return response()->json(['role' => 'estudiante']);
         }
 
         $teacher = Docente::query()->where('correo', $correo)->first();
 
-        if (!$teacher || !$teacher->password || !Hash::check($password, $teacher->password)) {
-            return back()->withInput()->with('auth_error', 'Credenciales invalidas para docente/jefe.');
+        if (!$teacher || !Hash::check($password, $teacher->password)) {
+            return response()->json(['message' => 'Credenciales invalidas.'], 401);
         }
 
         if ($role === 'jefe' && (int) $teacher->es_jefe_carrera !== 1) {
-            return back()->withInput()->with('auth_error', 'El docente no esta registrado como jefe de carrera.');
+            return response()->json(['message' => 'El docente no es jefe de carrera.'], 403);
         }
 
         if ($role === 'docente' && (int) $teacher->es_jefe_carrera === 1) {
-            return back()->withInput()->with('auth_error', 'Este usuario es jefe de carrera. Ingresa desde ese perfil.');
+            return response()->json(['message' => 'Este usuario es jefe de carrera. Ingresa desde ese perfil.'], 403);
         }
 
         $this->storePortalSession($request, [
-            'role' => $role,
-            'id' => $teacher->id_docente,
-            'name' => $teacher->nombre,
-            'email' => $teacher->correo,
-            'university_id' => $teacher->id_universidad,
+            'role'    => $role,
+            'id'      => $teacher->id_docente,
+            'name'    => trim("{$teacher->nombre} {$teacher->apellido}"),
+            'email'   => $teacher->correo,
             'is_head' => (int) $teacher->es_jefe_carrera === 1,
         ]);
 
-        return $role === 'jefe'
-            ? redirect()->route('portal.head')
-            : redirect()->route('portal.teacher');
+        return response()->json(['role' => $role]);
     }
 
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request): JsonResponse
     {
         $request->session()->forget('portal_user');
         $request->session()->regenerateToken();
 
-        return redirect()->route('portal.login')->with('auth_ok', 'Sesion cerrada correctamente.');
+        return response()->json(['message' => 'Sesion cerrada correctamente.']);
     }
 
-    public function studentDashboard(Request $request): View
+    public function me(Request $request): JsonResponse
     {
         $portalUser = $request->session()->get('portal_user');
 
-        return view('portal.student', [
-            'portalUser' => $portalUser,
-            'modulo' => Modulo::query()->find($portalUser['module_id']),
-            'universidad' => Universidad::query()->find($portalUser['university_id']),
-        ]);
+        if (!$portalUser) {
+            return response()->json(['message' => 'No autenticado'], 401);
+        }
+
+        $data = ['user' => $portalUser];
+
+        if ($portalUser['role'] === 'jefe') {
+            $data['teachersCount'] = Docente::query()->where('es_jefe_carrera', false)->count();
+            $data['studentsCount'] = Estudiante::count();
+            $data['modulosCount']  = Modulo::count();
+        }
+
+        if ($portalUser['role'] === 'estudiante') {
+            $inscripciones = Inscripcion::query()
+                ->with(['materia:id_materia,nombre', 'modulo:id_modulo,fecha_inicio,fecha_final,creditos'])
+                ->where('id_estudiante', $portalUser['id'])
+                ->whereIn('estado', ['cursando', 'pendiente'])
+                ->get();
+
+            $data['inscripciones'] = $inscripciones->map(fn (Inscripcion $i) => [
+                'id_inscripcion'   => $i->id_inscripcion,
+                'materia'          => $i->materia?->nombre,
+                'modulo'           => [
+                    'id'           => $i->modulo?->id_modulo,
+                    'fecha_inicio' => $i->modulo?->fecha_inicio,
+                    'fecha_final'  => $i->modulo?->fecha_final,
+                    'creditos'     => $i->modulo?->creditos,
+                ],
+                'estado'           => $i->estado,
+                'intentos'         => $i->intentos,
+            ]);
+
+            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
+            
+            // Horario generado
+            $data['horario'] = HorarioGenerado::query()
+                ->with(['detalles.materia', 'detalles.docente', 'detalles.bloque', 'detalles.aula'])
+                ->where('id_estudiante', $portalUser['id'])
+                ->orderBy('fecha_generacion', 'desc')
+                ->first();
+        }
+
+        return response()->json(['data' => $data]);
     }
 
-    public function teacherDashboard(Request $request): View
-    {
-        $portalUser = $request->session()->get('portal_user');
-
-        return view('portal.teacher', [
-            'portalUser' => $portalUser,
-            'universidad' => Universidad::query()->find($portalUser['university_id']),
-        ]);
-    }
-
-    public function headDashboard(Request $request): View
-    {
-        $portalUser = $request->session()->get('portal_user');
-
-        $teachersCount = Docente::query()
-            ->where('id_universidad', $portalUser['university_id'])
-            ->count();
-
-        $studentsCount = Estudiante::query()
-            ->where('id_universidad', $portalUser['university_id'])
-            ->count();
-
-        return view('portal.head', [
-            'portalUser' => $portalUser,
-            'teachersCount' => $teachersCount,
-            'studentsCount' => $studentsCount,
-            'modulosCount' => Modulo::query()->count(),
-            'universidad' => Universidad::query()->find($portalUser['university_id']),
-        ]);
-    }
+    // ─── DOCENTE ─────────────────────────────────────────────────────────────
 
     public function teacherAssignments(Request $request): JsonResponse
     {
         $portalUser = $request->session()->get('portal_user');
 
         $assignments = DocenteMateria::query()
-            ->with(['materia:id_materia,nombre', 'horario:id_horario,nombre,hora_inicio,hora_fin', 'modulo:id_modulo,nombre,fecha_inicio,fecha_final'])
-            ->withCount('inscripciones')
+            ->with([
+                'materia:id_materia,nombre',
+                'modulo:id_modulo,fecha_inicio,fecha_final',
+                'bloque',
+                'aula'
+            ])
+            ->withCount(['inscripciones' => fn ($q) => $q->whereColumn('inscripciones.id_modulo', 'docente_materias.id_modulo')])
             ->where('id_docente', $portalUser['id'])
             ->orderBy('id_modulo')
-            ->orderBy('id_horario')
             ->get();
 
         return response()->json([
-            'data' => $assignments->map(function (DocenteMateria $assignment): array {
-                return [
-                    'id_dm' => $assignment->id_dm,
-                    'materia' => [
-                        'id' => $assignment->materia?->id_materia,
-                        'nombre' => $assignment->materia?->nombre,
-                    ],
-                    'modulo' => [
-                        'id' => $assignment->modulo?->id_modulo,
-                        'nombre' => $assignment->modulo?->nombre,
-                        'fecha_inicio' => $assignment->modulo?->fecha_inicio,
-                        'fecha_final' => $assignment->modulo?->fecha_final,
-                    ],
-                    'horario' => [
-                        'id' => $assignment->horario?->id_horario,
-                        'nombre' => $assignment->horario?->nombre,
-                        'hora_inicio' => $assignment->horario?->hora_inicio,
-                        'hora_fin' => $assignment->horario?->hora_fin,
-                    ],
-                    'estudiantes_count' => $assignment->inscripciones_count,
-                ];
-            }),
+            'data' => $assignments->map(fn (DocenteMateria $a) => [
+                'id_dm'              => $a->id_dm,
+                'materia'            => ['id' => $a->materia?->id_materia, 'nombre' => $a->materia?->nombre],
+                'modulo'             => [
+                    'id'           => $a->modulo?->id_modulo,
+                    'fecha_inicio' => $a->modulo?->fecha_inicio,
+                    'fecha_final'  => $a->modulo?->fecha_final,
+                ],
+                'bloque'             => $a->bloque?->nombre,
+                'aula'               => $a->aula?->nombre,
+                'estudiantes_count'  => $a->inscripciones_count,
+            ]),
         ]);
     }
 
@@ -178,170 +170,220 @@ class PortalAuthController extends Controller
         $assignment = DocenteMateria::query()
             ->with([
                 'materia:id_materia,nombre',
-                'horario:id_horario,nombre,hora_inicio,hora_fin',
-                'modulo:id_modulo,nombre,fecha_inicio,fecha_final',
-                'inscripciones.estudiante:id_estudiante,nombre,correo,id_modulo',
+                'modulo:id_modulo,fecha_inicio,fecha_final',
             ])
             ->where('id_docente', $portalUser['id'])
             ->where('id_dm', $idDm)
             ->first();
 
         if (!$assignment) {
-            return response()->json([
-                'message' => 'No se encontro la asignacion para este docente.',
-            ], 404);
+            return response()->json(['message' => 'Asignacion no encontrada.'], 404);
         }
 
-        $students = $assignment->inscripciones
-            ->map(function (Inscripcion $inscripcion): array {
-                $student = $inscripcion->estudiante;
-
-                return [
-                    'id_estudiante' => $student?->id_estudiante,
-                    'nombre' => $student?->nombre,
-                    'correo' => $student?->correo,
-                ];
-            })
+        $students = Inscripcion::query()
+            ->with('estudiante:id_estudiante,nombre,apellido,correo')
+            ->where('id_materia', $assignment->id_materia)
+            ->where('id_modulo', $assignment->id_modulo)
+            ->get()
+            ->map(fn (Inscripcion $i) => [
+                'id_estudiante' => $i->estudiante?->id_estudiante,
+                'nombre'        => trim("{$i->estudiante?->nombre} {$i->estudiante?->apellido}"),
+                'correo'        => $i->estudiante?->correo,
+                'estado'        => $i->estado,
+            ])
             ->sortBy('nombre')
             ->values();
 
         return response()->json([
             'data' => [
                 'asignacion' => [
-                    'id_dm' => $assignment->id_dm,
-                    'materia' => $assignment->materia?->nombre,
-                    'modulo' => $assignment->modulo?->nombre,
-                    'horario' => $assignment->horario?->nombre,
-                    'hora_inicio' => $assignment->horario?->hora_inicio,
-                    'hora_fin' => $assignment->horario?->hora_fin,
+                    'id_dm'        => $assignment->id_dm,
+                    'materia'      => $assignment->materia?->nombre,
+                    'modulo'       => $assignment->modulo?->id_modulo,
+                    'fecha_inicio' => $assignment->modulo?->fecha_inicio,
+                    'fecha_fin'    => $assignment->modulo?->fecha_final,
                 ],
                 'estudiantes' => $students,
             ],
         ]);
     }
 
-    public function headCatalog(Request $request): JsonResponse
+    public function getDisponibilidad(Request $request): JsonResponse
     {
         $portalUser = $request->session()->get('portal_user');
+        $bloques = BloqueHorario::orderBy('orden')->get();
+        $misBloques = DisponibilidadDocente::where('id_docente', $portalUser['id'])->pluck('id_bloque')->toArray();
 
+        return response()->json([
+            'bloques' => $bloques,
+            'misBloques' => $misBloques
+        ]);
+    }
+
+    public function saveDisponibilidad(Request $request): JsonResponse
+    {
+        $portalUser = $request->session()->get('portal_user');
+        $request->validate([
+            'bloques' => 'array',
+            'bloques.*' => 'exists:bloques_horarios,id_bloque'
+        ]);
+
+        DB::transaction(function() use ($portalUser, $request) {
+            DisponibilidadDocente::where('id_docente', $portalUser['id'])->delete();
+            foreach ($request->bloques as $idBloque) {
+                DisponibilidadDocente::create([
+                    'id_docente' => $portalUser['id'],
+                    'id_bloque' => $idBloque
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'Disponibilidad guardada correctamente.']);
+    }
+
+    // ─── ESTUDIANTE ──────────────────────────────────────────────────────────
+
+    public function generateSchedule(Request $request): JsonResponse
+    {
+        $portalUser = $request->session()->get('portal_user');
+        $idEstudiante = $portalUser['id'];
+
+        // Obtener inscripciones vigentes (cursando o pendiente)
+        $inscripciones = Inscripcion::query()
+            ->with(['materia', 'modulo'])
+            ->where('id_estudiante', $idEstudiante)
+            ->whereIn('estado', ['cursando', 'pendiente'])
+            ->get();
+
+        if ($inscripciones->isEmpty()) {
+            return response()->json(['message' => 'No tienes materias inscritas para generar horario.'], 422);
+        }
+
+        // Validar créditos totales
+        $totalCredits = $inscripciones->sum(fn($i) => $i->modulo?->creditos ?? 0);
+        if ($totalCredits > 29) {
+            return response()->json(['message' => "Excediste el límite de 29 créditos (Total: $totalCredits). No se puede generar el horario."], 422);
+        }
+
+        return DB::transaction(function() use ($idEstudiante, $inscripciones) {
+            // Eliminar horario previo para este estudiante
+            HorarioGenerado::where('id_estudiante', $idEstudiante)->delete();
+
+            $horario = HorarioGenerado::create([
+                'id_estudiante' => $idEstudiante,
+                'id_modulo' => $inscripciones->first()->id_modulo, // Simplificación: toma el módulo de la primera
+                'estado' => 'confirmado',
+                'fecha_generacion' => now()
+            ]);
+
+            foreach ($inscripciones as $i) {
+                // Buscar la asignación docente (DocenteMateria) que corresponde a esta materia y módulo
+                $asignacion = DocenteMateria::where('id_materia', $i->id_materia)
+                    ->where('id_modulo', $i->id_modulo)
+                    ->first();
+
+                if ($asignacion && $asignacion->id_bloque) {
+                    DetalleHorario::create([
+                        'id_horario' => $horario->id_horario,
+                        'id_materia' => $i->id_materia,
+                        'id_docente' => $asignacion->id_docente,
+                        'id_bloque' => $asignacion->id_bloque,
+                        'id_aula' => $asignacion->id_aula
+                    ]);
+                }
+            }
+
+            return response()->json(['message' => 'Horario generado con éxito.']);
+        });
+    }
+
+    // ─── JEFE ─────────────────────────────────────────────────────────────────
+
+    public function headCatalog(Request $request): JsonResponse
+    {
         $teachers = Docente::query()
-            ->where('id_universidad', $portalUser['university_id'])
             ->orderBy('nombre')
-            ->get(['id_docente', 'nombre', 'correo', 'es_jefe_carrera']);
+            ->get(['id_docente', 'nombre', 'apellido', 'correo', 'es_jefe_carrera']);
 
         $materias = Materia::query()
             ->orderBy('nombre')
-            ->get(['id_materia', 'nombre']);
+            ->get(['id_materia', 'nombre', 'horas_semanales', 'año_academico']);
 
         $modulos = Modulo::query()
             ->orderBy('fecha_inicio')
-            ->get(['id_modulo', 'nombre', 'fecha_inicio', 'fecha_final']);
+            ->get(['id_modulo', 'fecha_inicio', 'fecha_final', 'id_semestre', 'creditos']);
 
-        $horarios = Horario::query()
-            ->orderBy('hora_inicio')
-            ->get(['id_horario', 'nombre', 'hora_inicio', 'hora_fin']);
-
-        $students = Estudiante::query()
-            ->where('id_universidad', $portalUser['university_id'])
+        $estudiantes = Estudiante::query()
             ->orderBy('nombre')
-            ->get(['id_estudiante', 'nombre', 'correo', 'id_modulo']);
+            ->get(['id_estudiante', 'nombre', 'apellido', 'correo']);
+
+        $aulas = Aula::orderBy('nombre')->get();
+        $bloques = BloqueHorario::orderBy('orden')->get();
 
         return response()->json([
             'data' => [
-                'docentes' => $teachers,
-                'estudiantes' => $students,
-                'materias' => $materias,
-                'modulos' => $modulos,
-                'horarios' => $horarios,
+                'docentes'    => $teachers,
+                'materias'    => $materias,
+                'modulos'     => $modulos,
+                'estudiantes' => $estudiantes,
+                'aulas'       => $aulas,
+                'bloques'     => $bloques
             ],
         ]);
     }
 
     public function headPersonSubjects(Request $request, string $tipo, int $idPersona): JsonResponse
     {
-        $portalUser = $request->session()->get('portal_user');
-
         if (!in_array($tipo, ['docente', 'estudiante'], true)) {
-            return response()->json([
-                'message' => 'Tipo de persona invalido. Usa docente o estudiante.',
-            ], 422);
+            return response()->json(['message' => 'Tipo invalido. Usa docente o estudiante.'], 422);
         }
 
-        $moduleId = $request->query('id_modulo');
-        $moduleId = $moduleId !== null ? (int) $moduleId : null;
+        $moduleId = $request->query('id_modulo') ? (int) $request->query('id_modulo') : null;
 
         if ($tipo === 'docente') {
-            $teacher = Docente::query()
-                ->where('id_universidad', $portalUser['university_id'])
-                ->where('id_docente', $idPersona)
-                ->first();
+            $teacher = Docente::query()->find($idPersona);
 
             if (!$teacher) {
-                return response()->json([
-                    'message' => 'Docente no encontrado en tu universidad.',
-                ], 404);
+                return response()->json(['message' => 'Docente no encontrado.'], 404);
             }
 
             $query = DocenteMateria::query()
-                ->with([
-                    'materia:id_materia,nombre',
-                    'modulo:id_modulo,nombre,fecha_inicio,fecha_final',
-                    'horario:id_horario,nombre,hora_inicio,hora_fin',
-                ])
-                ->withCount('inscripciones')
+                ->with(['materia:id_materia,nombre', 'modulo:id_modulo,fecha_inicio,fecha_final', 'bloque', 'aula'])
+                ->withCount(['inscripciones' => fn ($q) => $q->whereColumn('inscripciones.id_modulo', 'docente_materias.id_modulo')])
                 ->where('id_docente', $idPersona)
-                ->orderBy('id_modulo')
-                ->orderBy('id_horario');
+                ->orderBy('id_modulo');
 
             if ($moduleId) {
                 $query->where('id_modulo', $moduleId);
             }
 
-            $subjects = $query->get()->map(function (DocenteMateria $assignment): array {
-                return [
-                    'id' => $assignment->id_dm,
-                    'materia' => $assignment->materia?->nombre,
-                    'modulo' => $assignment->modulo?->nombre,
-                    'fecha_inicio' => $assignment->modulo?->fecha_inicio,
-                    'fecha_final' => $assignment->modulo?->fecha_final,
-                    'horario' => $assignment->horario?->nombre,
-                    'hora_inicio' => $assignment->horario?->hora_inicio,
-                    'hora_fin' => $assignment->horario?->hora_fin,
-                    'estudiantes_count' => $assignment->inscripciones_count,
-                ];
-            });
+            $subjects = $query->get()->map(fn (DocenteMateria $a) => [
+                'id'               => $a->id_dm,
+                'materia'          => $a->materia?->nombre,
+                'fecha_inicio'     => $a->modulo?->fecha_inicio,
+                'fecha_final'      => $a->modulo?->fecha_final,
+                'bloque'           => $a->bloque?->nombre,
+                'aula'             => $a->aula?->nombre,
+                'estudiantes_count'=> $a->inscripciones_count,
+            ]);
 
             return response()->json([
                 'data' => [
-                    'tipo' => 'docente',
-                    'persona' => [
-                        'id' => $teacher->id_docente,
-                        'nombre' => $teacher->nombre,
-                        'correo' => $teacher->correo,
-                    ],
+                    'tipo'     => 'docente',
+                    'persona'  => ['id' => $teacher->id_docente, 'nombre' => "{$teacher->nombre} {$teacher->apellido}", 'correo' => $teacher->correo],
                     'materias' => $subjects,
                 ],
             ]);
         }
 
-        $student = Estudiante::query()
-            ->where('id_universidad', $portalUser['university_id'])
-            ->where('id_estudiante', $idPersona)
-            ->first();
+        $student = Estudiante::query()->find($idPersona);
 
         if (!$student) {
-            return response()->json([
-                'message' => 'Estudiante no encontrado en tu universidad.',
-            ], 404);
+            return response()->json(['message' => 'Estudiante no encontrado.'], 404);
         }
 
         $query = Inscripcion::query()
-            ->with([
-                'docenteMateria.materia:id_materia,nombre',
-                'docenteMateria.modulo:id_modulo,nombre,fecha_inicio,fecha_final',
-                'docenteMateria.horario:id_horario,nombre,hora_inicio,hora_fin',
-                'docenteMateria.docente:id_docente,nombre,correo',
-            ])
+            ->with(['materia:id_materia,nombre', 'modulo:id_modulo,fecha_inicio,fecha_final'])
             ->where('id_estudiante', $idPersona)
             ->orderBy('id_modulo');
 
@@ -349,31 +391,18 @@ class PortalAuthController extends Controller
             $query->where('id_modulo', $moduleId);
         }
 
-        $subjects = $query->get()->map(function (Inscripcion $inscripcion): array {
-            $assignment = $inscripcion->docenteMateria;
-
-            return [
-                'id' => $inscripcion->id_inscripcion,
-                'materia' => $assignment?->materia?->nombre,
-                'modulo' => $assignment?->modulo?->nombre,
-                'fecha_inicio' => $assignment?->modulo?->fecha_inicio,
-                'fecha_final' => $assignment?->modulo?->fecha_final,
-                'horario' => $assignment?->horario?->nombre,
-                'hora_inicio' => $assignment?->horario?->hora_inicio,
-                'hora_fin' => $assignment?->horario?->hora_fin,
-                'docente' => $assignment?->docente?->nombre,
-                'docente_correo' => $assignment?->docente?->correo,
-            ];
-        });
+        $subjects = $query->get()->map(fn (Inscripcion $i) => [
+            'id'          => $i->id_inscripcion,
+            'materia'     => $i->materia?->nombre,
+            'fecha_inicio'=> $i->modulo?->fecha_inicio,
+            'fecha_final' => $i->modulo?->fecha_final,
+            'estado'      => $i->estado,
+        ]);
 
         return response()->json([
             'data' => [
-                'tipo' => 'estudiante',
-                'persona' => [
-                    'id' => $student->id_estudiante,
-                    'nombre' => $student->nombre,
-                    'correo' => $student->correo,
-                ],
+                'tipo'     => 'estudiante',
+                'persona'  => ['id' => $student->id_estudiante, 'nombre' => "{$student->nombre} {$student->apellido}", 'correo' => $student->correo],
                 'materias' => $subjects,
             ],
         ]);
@@ -381,129 +410,89 @@ class PortalAuthController extends Controller
 
     public function headTeacherAvailability(Request $request, int $idDocente): JsonResponse
     {
-        $portalUser = $request->session()->get('portal_user');
-
-        $teacher = Docente::query()
-            ->where('id_universidad', $portalUser['university_id'])
-            ->where('id_docente', $idDocente)
-            ->first();
-
-        if (!$teacher) {
-            return response()->json([
-                'message' => 'Docente no encontrado en tu universidad.',
-            ], 404);
-        }
-
-        $busySlots = DocenteMateria::query()
-            ->with(['materia:id_materia,nombre', 'horario:id_horario,nombre,hora_inicio,hora_fin', 'modulo:id_modulo,nombre,fecha_inicio,fecha_final'])
-            ->where('id_docente', $idDocente)
-            ->orderBy('id_modulo')
-            ->orderBy('id_horario')
-            ->get();
-
-        $preferredSlots = HorasLibresDoc::query()
-            ->with(['horario:id_horario,nombre,hora_inicio,hora_fin', 'modulo:id_modulo,nombre,fecha_inicio,fecha_final'])
-            ->where('id_docente', $idDocente)
-            ->orderBy('id_modulo')
-            ->orderBy('id_horario')
-            ->get();
+        $bloquesDisponibles = DisponibilidadDocente::where('id_docente', $idDocente)
+            ->with('bloque')
+            ->get()
+            ->map(fn($d) => $d->bloque?->nombre);
 
         return response()->json([
-            'data' => [
-                'docente' => [
-                    'id_docente' => $teacher->id_docente,
-                    'nombre' => $teacher->nombre,
-                    'correo' => $teacher->correo,
-                ],
-                'ocupados' => $busySlots->map(function (DocenteMateria $slot): array {
-                    return [
-                        'id_dm' => $slot->id_dm,
-                        'materia' => $slot->materia?->nombre,
-                        'modulo' => $slot->modulo?->nombre,
-                        'fecha_inicio' => $slot->modulo?->fecha_inicio,
-                        'fecha_final' => $slot->modulo?->fecha_final,
-                        'horario' => $slot->horario?->nombre,
-                        'hora_inicio' => $slot->horario?->hora_inicio,
-                        'hora_fin' => $slot->horario?->hora_fin,
-                    ];
-                }),
-                'preferencias' => $preferredSlots->map(function (HorasLibresDoc $slot): array {
-                    return [
-                        'id_hld' => $slot->id_hld,
-                        'modulo' => $slot->modulo?->nombre,
-                        'fecha_inicio' => $slot->modulo?->fecha_inicio,
-                        'fecha_final' => $slot->modulo?->fecha_final,
-                        'horario' => $slot->horario?->nombre,
-                        'hora_inicio' => $slot->horario?->hora_inicio,
-                        'hora_fin' => $slot->horario?->hora_fin,
-                    ];
-                }),
-            ],
+            'disponibilidad' => $bloquesDisponibles
         ]);
     }
 
-    public function headCreateMateria(HeadCreateMateriaRequest $request): JsonResponse
+    public function headCreateMateria(Request $request): JsonResponse
     {
-        $data = $request->validated();
+        $request->validate(['nombre' => 'required|string|max:120']);
 
         $materia = Materia::query()->create([
-            'nombre' => trim($data['nombre']),
+            'nombre'          => trim($request->nombre),
+            'horas_semanales' => $request->horas_semanales ?? 1,
+            'año_academico'   => $request->año_academico ?? 1,
         ]);
 
-        return response()->json([
-            'message' => 'Materia creada correctamente.',
-            'data' => $materia,
-        ], 201);
+        return response()->json(['message' => 'Materia creada.', 'data' => $materia], 201);
     }
 
-    public function headAssignMateria(HeadAssignMateriaRequest $request): JsonResponse
+    public function headAssignMateria(Request $request): JsonResponse
     {
-        $portalUser = $request->session()->get('portal_user');
+        $request->validate([
+            'id_docente' => 'required|integer|exists:docentes,id_docente',
+            'id_materia' => 'required|integer|exists:materias,id_materia',
+            'id_modulo'  => 'required|integer|exists:modulos,id_modulo',
+            'id_bloque'  => 'nullable|integer|exists:bloques_horarios,id_bloque',
+            'id_aula'    => 'nullable|integer|exists:aulas,id_aula',
+        ]);
 
-        $data = $request->validated();
+        // Verificar si el bloque ya está ocupado en ese módulo por el mismo docente o aula
+        if ($request->id_bloque) {
+            $clashDocente = DocenteMateria::where('id_docente', $request->id_docente)
+                ->where('id_modulo', $request->id_modulo)
+                ->where('id_bloque', $request->id_bloque)
+                ->exists();
+            if ($clashDocente) return response()->json(['message' => 'El docente ya tiene una materia en ese bloque/modulo.'], 422);
 
-        $teacher = Docente::query()
-            ->where('id_docente', $data['id_docente'])
-            ->where('id_universidad', $portalUser['university_id'])
-            ->first();
-
-        if (!$teacher) {
-            return response()->json([
-                'message' => 'Solo puedes asignar materias a docentes de tu universidad.',
-            ], 422);
+            if ($request->id_aula) {
+                $clashAula = DocenteMateria::where('id_aula', $request->id_aula)
+                    ->where('id_modulo', $request->id_modulo)
+                    ->where('id_bloque', $request->id_bloque)
+                    ->exists();
+                if ($clashAula) return response()->json(['message' => 'El aula ya está ocupada en ese bloque/modulo.'], 422);
+            }
         }
 
-        $slotInUse = DocenteMateria::query()
-            ->where('id_docente', $data['id_docente'])
-            ->where('id_modulo', $data['id_modulo'])
-            ->where('id_horario', $data['id_horario'])
+        $assignment = DocenteMateria::query()->create($request->all());
+
+        return response()->json(['message' => 'Materia asignada correctamente.', 'data' => $assignment], 201);
+    }
+
+    public function headEnrollStudent(Request $request): JsonResponse
+    {
+        $request->validate([
+            'id_estudiante' => 'required|integer|exists:estudiantes,id_estudiante',
+            'id_materia'    => 'required|integer|exists:materias,id_materia',
+            'id_modulo'     => 'required|integer|exists:modulos,id_modulo',
+        ]);
+
+        // Verificar si ya está inscrito
+        $exists = Inscripcion::where('id_estudiante', $request->id_estudiante)
+            ->where('id_materia', $request->id_materia)
+            ->where('id_modulo', $request->id_modulo)
             ->exists();
 
-        if ($slotInUse) {
-            return response()->json([
-                'message' => 'El docente ya tiene un horario ocupado en ese modulo.',
-            ], 422);
+        if ($exists) {
+            return response()->json(['message' => 'El estudiante ya está inscrito en esta materia en este módulo.'], 422);
         }
 
-        $duplicateAssignment = DocenteMateria::query()
-            ->where('id_docente', $data['id_docente'])
-            ->where('id_materia', $data['id_materia'])
-            ->where('id_modulo', $data['id_modulo'])
-            ->exists();
+        $inscripcion = Inscripcion::create([
+            'id_estudiante' => $request->id_estudiante,
+            'id_materia'    => $request->id_materia,
+            'id_modulo'     => $request->id_modulo,
+            'estado'        => 'cursando',
+            'fecha_inscripcion' => now(),
+            'intentos'      => 1
+        ]);
 
-        if ($duplicateAssignment) {
-            return response()->json([
-                'message' => 'La materia ya fue asignada a este docente en ese modulo.',
-            ], 422);
-        }
-
-        $assignment = DocenteMateria::query()->create($data);
-        $assignment->load(['materia:id_materia,nombre', 'docente:id_docente,nombre,correo', 'horario:id_horario,nombre,hora_inicio,hora_fin', 'modulo:id_modulo,nombre,fecha_inicio,fecha_final']);
-
-        return response()->json([
-            'message' => 'Materia asignada correctamente.',
-            'data' => $assignment,
-        ], 201);
+        return response()->json(['message' => 'Estudiante inscrito correctamente.', 'data' => $inscripcion], 201);
     }
 
     private function storePortalSession(Request $request, array $payload): void
