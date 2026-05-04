@@ -15,12 +15,12 @@ export default function PortalLayout({ roleTitle, breadcrumbs, roleChip, pageTit
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <h1>ROSIE</h1>
-          <small>Scheduling AI</small>
+          <div className="brand-icon">R</div>
+          <h1>Rosie</h1>
         </div>
 
-        <div>
-          <div className="menu-title">Navegacion</div>
+        <div style={{ marginTop: '32px' }}>
+          <div className="menu-label">Navegación</div>
           <nav className="menu">
             {Sidebar && <Sidebar />}
           </nav>
