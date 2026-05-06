@@ -40,6 +40,9 @@ class AuthController extends Controller
 
     public function login(PortalLoginRequest $request): JsonResponse
     {
+        // Clear any existing session before creating a new one
+        $request->session()->forget('portal_user');
+
         $credentials = $request->validated();
         $role     = $credentials['role'];
         $correo   = $credentials['correo'];
@@ -162,6 +165,52 @@ class AuthController extends Controller
         }
 
         return response()->json(['data' => $data]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $portalUser = $request->session()->get('portal_user');
+        $role = $portalUser['role'];
+
+        $request->validate([
+            'nombre'           => 'required|string|max:80',
+            'apellido'         => 'nullable|string|max:80',
+            'password'         => 'nullable|string|min:6|confirmed',
+        ]);
+
+        $nombre   = trim($request->nombre);
+        $apellido = trim($request->apellido ?? '');
+
+        if ($role === 'estudiante') {
+            $user = Estudiante::findOrFail($portalUser['id']);
+            $user->nombre   = $nombre;
+            $user->apellido = $apellido ?: null;
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
+            }
+            $user->save();
+
+            $this->storePortalSession($request, array_merge($portalUser, [
+                'name' => trim("{$user->nombre} {$user->apellido}"),
+            ]));
+        } else {
+            $user = Docente::findOrFail($portalUser['id']);
+            $user->nombre   = $nombre;
+            $user->apellido = $apellido ?: null;
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
+            }
+            $user->save();
+
+            $this->storePortalSession($request, array_merge($portalUser, [
+                'name' => trim("{$user->nombre} {$user->apellido}"),
+            ]));
+        }
+
+        return response()->json([
+            'message' => 'Perfil actualizado correctamente.',
+            'name'    => trim("{$user->nombre} {$user->apellido}"),
+        ]);
     }
 
     private function storePortalSession(Request $request, array $payload): void

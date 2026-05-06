@@ -20,7 +20,7 @@ class DocenteController extends Controller
         $assignments = DocenteMateria::query()
             ->with([
                 'materia:id_materia,nombre',
-                'modulo:id_modulo,fecha_inicio,fecha_final',
+                'modulo:id_modulo,nombre,fecha_inicio,fecha_final,creditos',
                 'bloque',
                 'aula'
             ])
@@ -35,9 +35,10 @@ class DocenteController extends Controller
                 'materia'            => ['id' => $a->materia?->id_materia, 'nombre' => $a->materia?->nombre],
                 'modulo'             => [
                     'id'           => $a->modulo?->id_modulo,
-                    'nombre'       => $a->modulo?->nombre,
+                    'nombre'       => $a->modulo?->nombre ?? "Módulo {$a->id_modulo}",
                     'fecha_inicio' => $a->modulo?->fecha_inicio,
                     'fecha_final'  => $a->modulo?->fecha_final,
+                    'creditos'     => $a->modulo?->creditos,
                 ],
 
                 'bloque'             => $a->bloque?->nombre,

@@ -88,7 +88,7 @@ class DatabaseSeeder extends Seeder
                 $materia = Materia::create([
                     'nombre' => $nombre,
                     'horas_semanales' => 4,
-                    'aÃ±o_academico' => $anio,
+                    'anio_academico' => $anio,
                     'semestre_academico' => $sem,
                 ]);
 
@@ -170,9 +170,10 @@ class DatabaseSeeder extends Seeder
         $doc2 = Docente::create(['nombre' => 'Pedro', 'apellido' => 'Gutierrez', 'es_jefe_carrera' => false, 'correo' => 'docente2@goodorder.test', 'password' => Hash::make('UPB123')]);
         $doc3 = Docente::create(['nombre' => 'Maria', 'apellido' => 'Flores', 'es_jefe_carrera' => false, 'correo' => 'docente3@goodorder.test', 'password' => Hash::make('UPB123')]);
 
-        foreach ([[$doc1, 'A'], [$doc1, 'B'], [$doc2, 'C'], [$doc2, 'D'], [$doc3, 'E'], [$doc3, 'F']] as [$doc, $bloqueNombre]) {
+        foreach ([[$doc1, 'A',1], [$doc1, 'B', 2], [$doc2, 'C', 3], [$doc2, 'D', 1], [$doc3, 'E',2], [$doc3, 'F', 3]] as [$doc, $bloqueNombre, $moduloNum]) {
             $bloque = $bloques->firstWhere('nombre', $bloqueNombre);
-            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque]);
+            $modulo = $modulos->firstWhere('nombre', $bloqueNombre);
+            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque, 'id_modulo' => $modulo->id_modulo]);
         }
 
         // Asignaciones demo
@@ -318,6 +319,7 @@ class DatabaseSeeder extends Seeder
 
         $this->command->info('Base poblada con malla 2 materias/modulo y progreso por cohorte de inscripcion.');
         $this->command->info('Login jefe: jefe@goodorder.test / UPB123');
+        // $this->call([AcademicDataSeeder::class]);
     }
 
     private function resetAcademicData(): void

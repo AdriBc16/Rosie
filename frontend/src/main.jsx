@@ -1,6 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import axios from 'axios'
 import App from './App.jsx'
+
+axios.defaults.withCredentials = true
+axios.defaults.withXSRFToken = true
+axios.defaults.xsrfCookieName = 'XSRF-TOKEN'
+axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

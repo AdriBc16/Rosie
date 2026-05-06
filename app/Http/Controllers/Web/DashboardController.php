@@ -30,12 +30,12 @@ class DashboardController extends Controller
 
         $materias = Materia::query()
             ->orderBy('nombre')
-            ->get(['id_materia', 'nombre', 'horas_semanales', 'año_academico', 'semestre_academico'])
+            ->get(['id_materia', 'nombre', 'horas_semanales', 'anio_academico', 'semestre_academico'])
             ->map(fn ($m) => [
                 'id_materia' => $m->id_materia,
                 'nombre' => $m->nombre,
                 'horas_semanales' => $m->horas_semanales,
-                'anio_academico' => $m->año_academico,
+                'anio_academico' => $m->anio_academico,
                 'semestre_academico' => $m->semestre_academico,
             ])
             ->values();

@@ -22,10 +22,10 @@ class AcademicDataSeeder extends Seeder
      */
     public function run(): void
     {
-        $universidades = [
-            Universidad::firstOrCreate(['nombre' => 'Universidad GoodOrder']),
-            Universidad::firstOrCreate(['nombre' => 'Instituto Tecnologico GoodOrder']),
-        ];
+        // $universidades = [
+        //     Universidad::firstOrCreate(['nombre' => 'Universidad GoodOrder']),
+        //     Universidad::firstOrCreate(['nombre' => 'Instituto Tecnologico GoodOrder']),
+        // ];
 
         $semestres = [
             Semestre::updateOrCreate(
