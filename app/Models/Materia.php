@@ -15,6 +15,7 @@ class Materia extends Model
         'nombre',
         'horas_semanales',
         'año_academico',
+        'semestre_academico',
     ];
 
     public function docenteMaterias(): HasMany

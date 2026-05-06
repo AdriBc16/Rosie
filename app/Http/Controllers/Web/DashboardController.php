@@ -10,8 +10,10 @@ use App\Models\Docente;
 use App\Models\DocenteMateria;
 use App\Models\Estudiante;
 use App\Models\Inscripcion;
+use App\Models\HistorialMateria;
 use App\Models\Materia;
 use App\Models\Modulo;
+use App\Models\Prerequisito;
 use App\Models\Semestre;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +30,15 @@ class DashboardController extends Controller
 
         $materias = Materia::query()
             ->orderBy('nombre')
-            ->get(['id_materia', 'nombre', 'horas_semanales', 'año_academico']);
+            ->get(['id_materia', 'nombre', 'horas_semanales', 'año_academico', 'semestre_academico'])
+            ->map(fn ($m) => [
+                'id_materia' => $m->id_materia,
+                'nombre' => $m->nombre,
+                'horas_semanales' => $m->horas_semanales,
+                'anio_academico' => $m->año_academico,
+                'semestre_academico' => $m->semestre_academico,
+            ])
+            ->values();
 
         $modulos = Modulo::query()
             ->orderBy('fecha_inicio')
@@ -40,14 +50,15 @@ class DashboardController extends Controller
 
         $estudiantes = Estudiante::query()
             ->orderBy('nombre')
-            ->get(['id_estudiante', 'nombre', 'apellido', 'correo']);
+            ->get(['id_estudiante', 'nombre', 'apellido', 'correo', 'cohorte_ingreso']);
 
         $aulas = Aula::query()->orderBy('nombre')->get();
         $bloques = BloqueHorario::query()->orderBy('orden')->get();
+        $prerrequisitos = Prerequisito::query()->get(['id_prerrequisito', 'id_materia', 'id_materia_prerrequisito', 'descripcion']);
+        $historialMaterias = HistorialMateria::query()->get(['id_estudiante', 'id_materia', 'convalidada']);
+        $inscripciones = Inscripcion::query()->get(['id_estudiante', 'id_materia', 'id_modulo', 'estado', 'fecha_inscripcion']);
 
-        $asignacionesActuales = DocenteMateria::query()
-            ->where('id_modulo', $activeModuloId)
-            ->get();
+        $asignacionesActuales = DocenteMateria::query()->get();
 
         return response()->json([
             'data' => [
@@ -58,6 +69,9 @@ class DashboardController extends Controller
                 'estudiantes' => $estudiantes,
                 'aulas' => $aulas,
                 'bloques' => $bloques,
+                'prerrequisitos' => $prerrequisitos,
+                'historialMaterias' => $historialMaterias,
+                'inscripciones' => $inscripciones,
                 'activeModuloId' => $activeModuloId,
                 'asignacionesActuales' => $asignacionesActuales,
             ],

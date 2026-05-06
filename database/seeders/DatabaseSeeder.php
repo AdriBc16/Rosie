@@ -13,153 +13,331 @@ use App\Models\Materia;
 use App\Models\Modulo;
 use App\Models\Prerequisito;
 use App\Models\Semestre;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── BLOQUES HORARIOS FIJOS (A–F) ─────────────────────────────────────
-        $bloques = [
+        $this->resetAcademicData();
+
+        $bloques = collect([
             ['nombre' => 'A', 'hora_inicio' => '07:45:00', 'hora_fin' => '09:45:00', 'dia_semana' => null, 'orden' => 1],
             ['nombre' => 'B', 'hora_inicio' => '10:00:00', 'hora_fin' => '12:00:00', 'dia_semana' => null, 'orden' => 2],
             ['nombre' => 'C', 'hora_inicio' => '12:15:00', 'hora_fin' => '14:15:00', 'dia_semana' => null, 'orden' => 3],
             ['nombre' => 'D', 'hora_inicio' => '14:30:00', 'hora_fin' => '16:30:00', 'dia_semana' => null, 'orden' => 4],
             ['nombre' => 'E', 'hora_inicio' => '16:45:00', 'hora_fin' => '18:45:00', 'dia_semana' => null, 'orden' => 5],
             ['nombre' => 'F', 'hora_inicio' => '19:00:00', 'hora_fin' => '21:00:00', 'dia_semana' => null, 'orden' => 6],
-        ];
-        foreach ($bloques as $b) {
-            BloqueHorario::create($b);
+        ])->map(fn ($b) => BloqueHorario::create($b));
+
+        $aulas = collect(['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'LAB 1', 'LAB 2'])
+            ->mapWithKeys(fn ($n) => [$n => Aula::create(['nombre' => $n, 'capacidad' => 40])]);
+
+        $modulosBySemNum = [];
+        $start = Carbon::create(2026, 1, 12);
+
+        for ($sem = 1; $sem <= 10; $sem++) {
+            $semStart = $start->copy()->addMonths(($sem - 1) * 5);
+            $semEnd = $semStart->copy()->addMonths(4)->subDay();
+            $semestre = Semestre::create([
+                'nombre' => "Semestre {$sem}",
+                'numero' => $sem,
+                'fecha_inicio' => $semStart->toDateString(),
+                'fecha_final' => $semEnd->toDateString(),
+            ]);
+
+            for ($mod = 1; $mod <= 3; $mod++) {
+                $mStart = $semStart->copy()->addDays(($mod - 1) * 40);
+                $mEnd = $mStart->copy()->addDays(34);
+                $modulo = Modulo::create([
+                    'nombre' => "Modulo {$mod}",
+                    'numero_en_semestre' => $mod,
+                    'id_semestre' => $semestre->id_semestre,
+                    'fecha_inicio' => $mStart->toDateString(),
+                    'fecha_final' => $mEnd->toDateString(),
+                    'creditos' => 3,
+                ]);
+                $modulosBySemNum["{$sem}-{$mod}"] = $modulo;
+            }
         }
-        [$blqA, $blqB, $blqC, $blqD, $blqE, $blqF] = BloqueHorario::orderBy('orden')->get()->all();
 
-        // ── AULAS ─────────────────────────────────────────────────────────────
-        $aulasNames = [
-            'A1', 'A2', 'A3', 'A4', 
-            'B1', 'B2', 'B3', 'B4', 
-            'LAB FINANZAS', 'LAB 1', 
-            'C1', 'C2', 'C3', 
-            'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8'
+        // Regla: 2 materias por modulo -> 6 por semestre
+        $materiasPorSemestre = [
+            1 => ['Algebra Lineal', 'Matematicas para Ingenieria I', 'Programacion I', 'Introduccion a la ETDT', 'Arquitectura y Tecnologia de Computadoras', 'English Beginners'],
+            2 => ['Probabilidad y Estadistica', 'Matematicas para Ingenieria II', 'Programacion II', 'Logica Formal', 'Sistemas Logicos', 'English Intermediate'],
+            3 => ['Ecuaciones Diferenciales', 'Fisica I', 'Programacion III', 'Algoritmica I', 'Automatas y Calculabilidad', 'English High Intermediate'],
+            4 => ['Metodos Numericos', 'Fisica II', 'Programacion Funcional', 'Algoritmica II', 'Compilacion', 'English Advanced'],
+            5 => ['Bases de Datos Relacionales', 'Sistemas Operativos I', 'Ingenieria de Software', 'Certificacion I', 'Innovacion y Creatividad', 'Metodos y Tecnicas de Investigacion'],
+            6 => ['Teleinformatica', 'Aplicaciones con Redes', 'Patrones de Diseno', 'Certificacion II', 'Analisis del Entorno', 'Practica de Induccion Profesional'],
+            7 => ['Proyecto de Ingenieria de Software', 'Bases de Datos Avanzadas', 'Sistemas Distribuidos', 'Certificacion III', 'Inteligencia Artificial', 'Infografia'],
+            8 => ['Gestion de Proyectos Informaticos', 'Topicos Selectos en TIC', 'Topicos Selectos en Inteligencia Artificial', 'Preparacion y Evaluacion de Proyectos', 'Practica Interna', 'Practica Profesional I'],
+            9 => ['Topicos Selectos en Ingenieria de Software', 'Robotica', 'Electiva I', 'Electiva II', 'Liderazgo y Etica', 'Practica Profesional II'],
+            10 => ['Electiva III', 'Electiva IV', 'Electiva V', 'Emprendedurismo', 'Seminario de Grado', 'Proyecto Final Integrador'],
         ];
-        foreach ($aulasNames as $name) {
-            Aula::create(['nombre' => $name, 'capacidad' => 40]);
+
+        $materiasByName = [];
+        $materiaSemestreById = [];
+        $materiaPosicionEnSemestreById = [];
+
+        foreach ($materiasPorSemestre as $sem => $lista) {
+            $anio = (int) ceil($sem / 2);
+            foreach ($lista as $pos => $nombre) {
+                $materia = Materia::create([
+                    'nombre' => $nombre,
+                    'horas_semanales' => 4,
+                    'aÃ±o_academico' => $anio,
+                    'semestre_academico' => $sem,
+                ]);
+
+                $materiasByName[$nombre] = $materia;
+                $materiaSemestreById[$materia->id_materia] = $sem;
+                $materiaPosicionEnSemestreById[$materia->id_materia] = $pos + 1;
+
+                DB::table('malla_materias')->insert([
+                    'id_materia' => $materia->id_materia,
+                    'nivel_plan' => $sem,
+                    'orden_en_nivel' => $pos + 1,
+                ]);
+            }
         }
-        $aulA = Aula::where('nombre', 'A1')->first();
-        $aulB = Aula::where('nombre', 'B1')->first();
-        $aulC = Aula::where('nombre', 'C1')->first();
-        $aulD = Aula::where('nombre', 'LAB 1')->first();
 
-        // ── SEMESTRES ─────────────────────────────────────────────────────────
-        $sem1 = Semestre::create(['nombre' => 'Semestre 2025-I', 'numero' => 1, 'fecha_inicio' => '2025-02-01', 'fecha_final' => '2025-06-30']);
-        $sem2 = Semestre::create(['nombre' => 'Semestre 2025-II', 'numero' => 2, 'fecha_inicio' => '2025-07-01', 'fecha_final' => '2025-11-30']);
+        $edges = [
+            ['Algebra Lineal', 'Probabilidad y Estadistica'],
+            ['Matematicas para Ingenieria I', 'Matematicas para Ingenieria II'],
+            ['Matematicas para Ingenieria II', 'Ecuaciones Diferenciales'],
+            ['Ecuaciones Diferenciales', 'Metodos Numericos'],
+            ['Matematicas para Ingenieria II', 'Fisica I'],
+            ['Fisica I', 'Fisica II'],
+            ['Programacion I', 'Programacion II'],
+            ['Programacion II', 'Programacion III'],
+            ['Programacion III', 'Programacion Funcional'],
+            ['Programacion II', 'Algoritmica I'],
+            ['Algoritmica I', 'Algoritmica II'],
+            ['Algoritmica II', 'Compilacion'],
+            ['Programacion II', 'Bases de Datos Relacionales'],
+            ['Bases de Datos Relacionales', 'Ingenieria de Software'],
+            ['Ingenieria de Software', 'Patrones de Diseno'],
+            ['Patrones de Diseno', 'Proyecto de Ingenieria de Software'],
+            ['Proyecto de Ingenieria de Software', 'Bases de Datos Avanzadas'],
+            ['Bases de Datos Avanzadas', 'Gestion de Proyectos Informaticos'],
+            ['Gestion de Proyectos Informaticos', 'Topicos Selectos en Ingenieria de Software'],
+            ['Sistemas Operativos I', 'Teleinformatica'],
+            ['Teleinformatica', 'Aplicaciones con Redes'],
+            ['Aplicaciones con Redes', 'Sistemas Distribuidos'],
+            ['Programacion Funcional', 'Certificacion I'],
+            ['Certificacion I', 'Certificacion II'],
+            ['Certificacion II', 'Certificacion III'],
+            ['Compilacion', 'Inteligencia Artificial'],
+            ['Inteligencia Artificial', 'Topicos Selectos en Inteligencia Artificial'],
+            ['Topicos Selectos en Inteligencia Artificial', 'Robotica'],
+            ['English Beginners', 'English Intermediate'],
+            ['English Intermediate', 'English High Intermediate'],
+            ['English High Intermediate', 'English Advanced'],
+            ['Metodos y Tecnicas de Investigacion', 'Preparacion y Evaluacion de Proyectos'],
+            ['Practica de Induccion Profesional', 'Practica Interna'],
+            ['Practica Interna', 'Practica Profesional I'],
+            ['Practica Profesional I', 'Practica Profesional II'],
+            ['Practica Profesional II', 'Seminario de Grado'],
+        ];
 
-        // ── MODULOS (con créditos) ────────────────────────────────────────────
-        // 1 mes ≈ 3 créditos | 1.5 meses ≈ 4 créditos
-        $mod1 = Modulo::create(['nombre' => 'Modulo 1', 'numero_en_semestre' => 1, 'id_semestre' => $sem1->id_semestre, 'fecha_inicio' => '2025-02-01', 'fecha_final' => '2025-02-28', 'creditos' => 3]);
-        $mod2 = Modulo::create(['nombre' => 'Modulo 2', 'numero_en_semestre' => 2, 'id_semestre' => $sem1->id_semestre, 'fecha_inicio' => '2025-03-01', 'fecha_final' => '2025-04-15', 'creditos' => 4]); // 1.5 meses
-        $mod3 = Modulo::create(['nombre' => 'Modulo 3', 'numero_en_semestre' => 3, 'id_semestre' => $sem1->id_semestre, 'fecha_inicio' => '2025-05-01', 'fecha_final' => '2025-05-31', 'creditos' => 3]);
-        $mod4 = Modulo::create(['nombre' => 'Modulo 1', 'numero_en_semestre' => 1, 'id_semestre' => $sem2->id_semestre, 'fecha_inicio' => '2025-07-01', 'fecha_final' => '2025-07-31', 'creditos' => 3]);
-        $mod5 = Modulo::create(['nombre' => 'Modulo 2', 'numero_en_semestre' => 2, 'id_semestre' => $sem2->id_semestre, 'fecha_inicio' => '2025-09-01', 'fecha_final' => '2025-10-15', 'creditos' => 4]);
+        $prereqByMateriaId = [];
+        foreach ($edges as [$req, $mat]) {
+            if (!isset($materiasByName[$req], $materiasByName[$mat])) {
+                continue;
+            }
+            $toId = $materiasByName[$mat]->id_materia;
+            $fromId = $materiasByName[$req]->id_materia;
+            Prerequisito::create([
+                'id_materia' => $toId,
+                'id_materia_prerrequisito' => $fromId,
+                'descripcion' => "Requiere {$req}",
+            ]);
+            $prereqByMateriaId[$toId][] = $fromId;
+        }
 
-        // ── MATERIAS ──────────────────────────────────────────────────────────
-        $matProg  = Materia::create(['nombre' => 'Programación I',         'horas_semanales' => 4, 'año_academico' => 1]);
-        $matAlgo  = Materia::create(['nombre' => 'Algoritmos',             'horas_semanales' => 4, 'año_academico' => 1]);
-        $matBD    = Materia::create(['nombre' => 'Bases de Datos',         'horas_semanales' => 4, 'año_academico' => 2]);
-        $matRedes = Materia::create(['nombre' => 'Redes de Computadoras',  'horas_semanales' => 3, 'año_academico' => 2]);
-        $matIA    = Materia::create(['nombre' => 'Inteligencia Artificial', 'horas_semanales' => 4, 'año_academico' => 3]);
-        $matWeb   = Materia::create(['nombre' => 'Desarrollo Web',         'horas_semanales' => 4, 'año_academico' => 2]);
-
-        Prerequisito::create(['id_materia' => $matBD->id_materia, 'id_materia_prerrequisito' => $matProg->id_materia, 'descripcion' => 'Debe haber aprobado Programación I']);
-        Prerequisito::create(['id_materia' => $matIA->id_materia, 'id_materia_prerrequisito' => $matAlgo->id_materia, 'descripcion' => 'Debe haber aprobado Algoritmos']);
-
-        // ── DOCENTES ──────────────────────────────────────────────────────────
         $jefe = Docente::create([
-            'nombre' => 'Carlos', 'apellido' => 'Mendoza',
+            'nombre' => 'Carlos',
+            'apellido' => 'Mendoza',
             'es_jefe_carrera' => true,
             'correo' => 'jefe@goodorder.test',
-            'password' => Hash::make('password123'),
-        ]);
-        $doc1 = Docente::create([
-            'nombre' => 'Ana', 'apellido' => 'López',
-            'es_jefe_carrera' => false,
-            'correo' => 'docente1@goodorder.test',
-            'password' => Hash::make('password123'),
-        ]);
-        $doc2 = Docente::create([
-            'nombre' => 'Pedro', 'apellido' => 'Gutiérrez',
-            'es_jefe_carrera' => false,
-            'correo' => 'docente2@goodorder.test',
-            'password' => Hash::make('password123'),
-        ]);
-        $doc3 = Docente::create([
-            'nombre' => 'María', 'apellido' => 'Flores',
-            'es_jefe_carrera' => false,
-            'correo' => 'docente3@goodorder.test',
-            'password' => Hash::make('password123'),
+            'password' => Hash::make('UPB123'),
         ]);
 
-        // ── DISPONIBILIDAD DOCENTE ────────────────────────────────────────────
-        // doc1 disponible en bloques A y B
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc1->id_docente, 'id_bloque' => $blqA->id_bloque]);
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc1->id_docente, 'id_bloque' => $blqB->id_bloque]);
+        $doc1 = Docente::create(['nombre' => 'Ana', 'apellido' => 'Lopez', 'es_jefe_carrera' => false, 'correo' => 'docente1@goodorder.test', 'password' => Hash::make('UPB123')]);
+        $doc2 = Docente::create(['nombre' => 'Pedro', 'apellido' => 'Gutierrez', 'es_jefe_carrera' => false, 'correo' => 'docente2@goodorder.test', 'password' => Hash::make('UPB123')]);
+        $doc3 = Docente::create(['nombre' => 'Maria', 'apellido' => 'Flores', 'es_jefe_carrera' => false, 'correo' => 'docente3@goodorder.test', 'password' => Hash::make('UPB123')]);
 
-        // doc2 disponible en bloques C y D
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc2->id_docente, 'id_bloque' => $blqC->id_bloque]);
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc2->id_docente, 'id_bloque' => $blqD->id_bloque]);
+        foreach ([[$doc1, 'A'], [$doc1, 'B'], [$doc2, 'C'], [$doc2, 'D'], [$doc3, 'E'], [$doc3, 'F']] as [$doc, $bloqueNombre]) {
+            $bloque = $bloques->firstWhere('nombre', $bloqueNombre);
+            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque]);
+        }
 
-        // doc3 disponible en bloques E y F
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc3->id_docente, 'id_bloque' => $blqE->id_bloque]);
-        \App\Models\DisponibilidadDocente::create(['id_docente' => $doc3->id_docente, 'id_bloque' => $blqF->id_bloque]);
+        // Asignaciones demo
+        $asignaciones = [
+            ['Programacion I', $doc1, '1-1', 'A', 'A1'],
+            ['Programacion II', $doc1, '2-2', 'B', 'B1'],
+            ['Bases de Datos Relacionales', $doc1, '5-1', 'A', 'LAB 1'],
+            ['Certificacion I', $doc1, '5-2', 'B', 'A2'],
+            ['Sistemas Operativos I', $doc2, '5-2', 'C', 'C1'],
+            ['Aplicaciones con Redes', $doc2, '6-2', 'D', 'C2'],
+            ['Ingenieria de Software', $doc3, '5-3', 'E', 'LAB 2'],
+            ['Inteligencia Artificial', $doc3, '7-2', 'F', 'LAB 1'],
+        ];
 
-        // ── ASIGNACIONES (docente + materia + modulo + bloque + aula) ─────────
-        // doc1: Prog I en mod1 bloque A, aula A1
-        $dm1 = DocenteMateria::create(['id_docente' => $doc1->id_docente, 'id_materia' => $matProg->id_materia,  'id_modulo' => $mod1->id_modulo, 'id_bloque' => $blqA->id_bloque, 'id_aula' => $aulA->id_aula]);
-        // doc1: Algoritmos en mod2 bloque B, aula B1
-        $dm2 = DocenteMateria::create(['id_docente' => $doc1->id_docente, 'id_materia' => $matAlgo->id_materia,  'id_modulo' => $mod2->id_modulo, 'id_bloque' => $blqB->id_bloque, 'id_aula' => $aulB->id_aula]);
+        foreach ($asignaciones as [$materiaNombre, $docente, $modKey, $bloqueNombre, $aulaNombre]) {
+            $bloque = $bloques->firstWhere('nombre', $bloqueNombre);
+            if (!isset($materiasByName[$materiaNombre], $modulosBySemNum[$modKey], $aulas[$aulaNombre], $bloque)) {
+                continue;
+            }
+            DocenteMateria::create([
+                'id_materia' => $materiasByName[$materiaNombre]->id_materia,
+                'id_docente' => $docente->id_docente,
+                'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
+                'id_bloque' => $bloque->id_bloque,
+                'id_aula' => $aulas[$aulaNombre]->id_aula,
+            ]);
+        }
 
-        // doc2: BD en mod2 bloque C, aula C1
-        $dm3 = DocenteMateria::create(['id_docente' => $doc2->id_docente, 'id_materia' => $matBD->id_materia,    'id_modulo' => $mod2->id_modulo, 'id_bloque' => $blqC->id_bloque, 'id_aula' => $aulC->id_aula]);
-        // doc2: Redes en mod3 bloque D, aula A1
-        $dm4 = DocenteMateria::create(['id_docente' => $doc2->id_docente, 'id_materia' => $matRedes->id_materia, 'id_modulo' => $mod3->id_modulo, 'id_bloque' => $blqD->id_bloque, 'id_aula' => $aulA->id_aula]);
+        // Cohortes por inscripcion (desde 2022):
+        // avance = 6 materias por semestre completado, respetando prerrequisitos.
+        $cohortStartYear = 2022;
+        $currentYear = now()->year;
+        $cohortYears = range($cohortStartYear, max($cohortStartYear, $currentYear));
 
-        // doc3: Desarrollo Web en mod1 bloque E, lab L1
-        $dm5 = DocenteMateria::create(['id_docente' => $doc3->id_docente, 'id_materia' => $matWeb->id_materia,   'id_modulo' => $mod1->id_modulo, 'id_bloque' => $blqE->id_bloque, 'id_aula' => $aulD->id_aula]);
-        // doc3: IA en mod3 bloque F, aula B1
-        $dm6 = DocenteMateria::create(['id_docente' => $doc3->id_docente, 'id_materia' => $matIA->id_materia,    'id_modulo' => $mod3->id_modulo, 'id_bloque' => $blqF->id_bloque, 'id_aula' => $aulB->id_aula]);
+        $orderedMaterias = collect($materiasPorSemestre)
+            ->sortKeys()
+            ->flatMap(fn ($list) => $list)
+            ->map(fn ($n) => $materiasByName[$n])
+            ->values();
 
-        // ── ESTUDIANTES ───────────────────────────────────────────────────────
-        $est1 = Estudiante::create(['nombre' => 'Luis',   'apellido' => 'Ramírez',  'correo' => 'estudiante1@goodorder.test', 'password' => Hash::make('password123'), 'es_traspaso' => false]);
-        $est2 = Estudiante::create(['nombre' => 'Sofia',  'apellido' => 'Castro',   'correo' => 'estudiante2@goodorder.test', 'password' => Hash::make('password123'), 'es_traspaso' => false]);
-        $est3 = Estudiante::create(['nombre' => 'Andrés', 'apellido' => 'Vargas',   'correo' => 'estudiante3@goodorder.test', 'password' => Hash::make('password123'), 'es_traspaso' => true]);
+        foreach ($cohortYears as $idx => $cohortYear) {
+            $studentNumber = $idx + 1;
 
-        // ── INSCRIPCIONES ─────────────────────────────────────────────────────
-        // est1: Prog I (mod1, 3 cr) + Algo (mod2, 4 cr) + BD (mod2, 4 cr) = 11 cr
-        Inscripcion::create(['id_estudiante' => $est1->id_estudiante, 'id_modulo' => $mod1->id_modulo, 'id_materia' => $matProg->id_materia,  'estado' => 'aprobada',  'intentos' => 1, 'fecha_inscripcion' => '2025-02-01 08:00:00']);
-        Inscripcion::create(['id_estudiante' => $est1->id_estudiante, 'id_modulo' => $mod2->id_modulo, 'id_materia' => $matAlgo->id_materia,  'estado' => 'cursando',  'intentos' => 1, 'fecha_inscripcion' => '2025-03-01 08:00:00']);
-        Inscripcion::create(['id_estudiante' => $est1->id_estudiante, 'id_modulo' => $mod2->id_modulo, 'id_materia' => $matBD->id_materia,    'estado' => 'cursando',  'intentos' => 1, 'fecha_inscripcion' => '2025-03-01 08:00:00']);
+            $est = Estudiante::create([
+                'nombre' => "Estudiante{$studentNumber}",
+                'apellido' => "Cohorte{$cohortYear}",
+                'correo' => "estudiante{$studentNumber}@goodorder.test",
+                'cohorte_ingreso' => $cohortYear,
+                'password' => Hash::make('UPB123'),
+                'es_traspaso' => false,
+            ]);
 
-        // est2: Prog I (mod1) + Web (mod1) + Redes (mod3) = 3+3+3 = 9 cr
-        Inscripcion::create(['id_estudiante' => $est2->id_estudiante, 'id_modulo' => $mod1->id_modulo, 'id_materia' => $matProg->id_materia,  'estado' => 'aprobada',  'intentos' => 1, 'fecha_inscripcion' => '2025-02-01 09:00:00']);
-        Inscripcion::create(['id_estudiante' => $est2->id_estudiante, 'id_modulo' => $mod1->id_modulo, 'id_materia' => $matWeb->id_materia,   'estado' => 'cursando',  'intentos' => 1, 'fecha_inscripcion' => '2025-02-01 09:00:00']);
-        Inscripcion::create(['id_estudiante' => $est2->id_estudiante, 'id_modulo' => $mod3->id_modulo, 'id_materia' => $matRedes->id_materia, 'estado' => 'pendiente', 'intentos' => 0, 'fecha_inscripcion' => '2025-05-01 09:00:00']);
+            // Ej: 5to año => 4 años completados => 4*2*6 = 48 materias aprobadas.
+            $nivelActual = max(1, min(5, ($currentYear - $cohortYear) + 1));
+            $semestresCompletados = max(0, min(10, ($nivelActual - 1) * 2));
+            $materiasCompletadasObjetivo = $semestresCompletados * 6;
 
-        // est3 (traspaso): Algo (mod2) + IA (mod3) = 4+3 = 7 cr
-        Inscripcion::create(['id_estudiante' => $est3->id_estudiante, 'id_modulo' => $mod2->id_modulo, 'id_materia' => $matAlgo->id_materia,  'estado' => 'cursando',  'intentos' => 1, 'fecha_inscripcion' => '2025-03-01 10:00:00']);
-        Inscripcion::create(['id_estudiante' => $est3->id_estudiante, 'id_modulo' => $mod3->id_modulo, 'id_materia' => $matIA->id_materia,    'estado' => 'pendiente', 'intentos' => 0, 'fecha_inscripcion' => '2025-05-01 10:00:00']);
+            $completed = [];
+            foreach ($orderedMaterias as $mat) {
+                if (count($completed) >= $materiasCompletadasObjetivo) {
+                    break;
+                }
+                $reqs = $prereqByMateriaId[$mat->id_materia] ?? [];
+                $allReqMet = empty(array_diff($reqs, $completed));
+                if (!$allReqMet) {
+                    continue;
+                }
 
-        HistorialMateria::create(['id_estudiante' => $est3->id_estudiante, 'id_materia' => $matProg->id_materia, 'convalidada' => true]);
+                $completed[] = $mat->id_materia;
 
-        $this->command->info('');
-        $this->command->info('✅ Base de datos poblada correctamente.');
-        $this->command->info('');
-        $this->command->info('Credenciales de prueba (password: password123)');
-        $this->command->info('  Jefe         → jefe@goodorder.test');
-        $this->command->info('  Docente 1    → docente1@goodorder.test  (bloques A, B)');
-        $this->command->info('  Docente 2    → docente2@goodorder.test  (bloques C, D)');
-        $this->command->info('  Docente 3    → docente3@goodorder.test  (bloques E, F)');
-        $this->command->info('  Estudiante 1 → estudiante1@goodorder.test');
-        $this->command->info('  Estudiante 2 → estudiante2@goodorder.test');
-        $this->command->info('  Estudiante 3 → estudiante3@goodorder.test');
+                HistorialMateria::create([
+                    'id_estudiante' => $est->id_estudiante,
+                    'id_materia' => $mat->id_materia,
+                    'convalidada' => false,
+                ]);
+
+                $sem = $materiaSemestreById[$mat->id_materia] ?? null;
+                $pos = $materiaPosicionEnSemestreById[$mat->id_materia] ?? null;
+                if ($sem === null || $pos === null) {
+                    continue;
+                }
+
+                $moduloNum = intdiv($pos - 1, 2) + 1;
+                $modKey = "{$sem}-{$moduloNum}";
+                if (!isset($modulosBySemNum[$modKey])) {
+                    continue;
+                }
+
+                $inscYear = $cohortYear + intdiv($sem - 1, 2);
+                $inscMonth = ($sem % 2 === 1) ? 2 : 8;
+
+                Inscripcion::create([
+                    'id_estudiante' => $est->id_estudiante,
+                    'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
+                    'id_materia' => $mat->id_materia,
+                    'estado' => 'aprobada',
+                    'intentos' => 1,
+                    'fecha_inscripcion' => Carbon::create($inscYear, $inscMonth, 10, 8, 0, 0),
+                ]);
+            }
+
+            // Materias en curso del nivel actual: 6 por semestre (2 por modulo), jerarquia respetada.
+            $semA = $semestresCompletados + 1;
+            $semB = $semestresCompletados + 2;
+
+            foreach ([$semA, $semB] as $sem) {
+                if ($sem < 1 || $sem > 10 || !isset($materiasPorSemestre[$sem])) {
+                    continue;
+                }
+
+                $matSem = array_slice($materiasPorSemestre[$sem], 0, 6);
+                foreach ($matSem as $idxMat => $mName) {
+                    $mat = $materiasByName[$mName] ?? null;
+                    if (!$mat) {
+                        continue;
+                    }
+                    $reqs = $prereqByMateriaId[$mat->id_materia] ?? [];
+                    $allReqMet = empty(array_diff($reqs, $completed));
+                    if (!$allReqMet) {
+                        continue;
+                    }
+
+                    $moduloNum = intdiv($idxMat, 2) + 1;
+                    $modKey = "{$sem}-{$moduloNum}";
+                    if (!isset($modulosBySemNum[$modKey])) {
+                        continue;
+                    }
+
+                    $inscYear = $cohortYear + intdiv($sem - 1, 2);
+                    $inscMonth = ($sem % 2 === 1) ? 2 : 8;
+
+                    Inscripcion::create([
+                        'id_estudiante' => $est->id_estudiante,
+                        'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
+                        'id_materia' => $mat->id_materia,
+                        'estado' => 'cursando',
+                        'intentos' => 1,
+                        'fecha_inscripcion' => Carbon::create($inscYear, $inscMonth, 10, 8, 0, 0),
+                    ]);
+                }
+            }
+        }
+
+        $this->command->info('Base poblada con malla 2 materias/modulo y progreso por cohorte de inscripcion.');
+        $this->command->info('Login jefe: jefe@goodorder.test / UPB123');
+    }
+
+    private function resetAcademicData(): void
+    {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        DB::table('detalle_horarios')->truncate();
+        DB::table('horarios_generados')->truncate();
+        DB::table('inscripciones')->truncate();
+        DB::table('historial_materias')->truncate();
+        DB::table('docente_materias')->truncate();
+        DB::table('disponibilidad_docente')->truncate();
+        DB::table('prerrequisitos')->truncate();
+        DB::table('malla_materias')->truncate();
+        DB::table('estudiantes')->truncate();
+        DB::table('docentes')->truncate();
+        DB::table('materias')->truncate();
+        DB::table('modulos')->truncate();
+        DB::table('semestres')->truncate();
+        DB::table('aulas')->truncate();
+        DB::table('bloques_horarios')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1');
     }
 }

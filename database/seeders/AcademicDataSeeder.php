@@ -76,7 +76,7 @@ class AcademicDataSeeder extends Seeder
             Materia::firstOrCreate(['nombre' => $nombreMateria]);
         }
 
-        $nombres = ['Carlos', 'Maria', 'Jose', 'Ana', 'Luis', 'Paola', 'Javier', 'Daniela', 'Miguel', 'Andrea'];
+        $nombres = ['Carlos', 'Maria', 'Jose', 'Ana', 'Luis', 'Paola', 'Javier', 'Daniela', 'Miguel', 'Andrea','Josue ', 'Sofia', 'Diego', 'Valentina', 'Fernando', 'Camila', 'Ricardo', 'Isabella', 'Alberto', 'Gabriela', 'Enrique'];
         $apellidos = ['Cabrera', 'Lopez', 'Fernandez', 'Rojas', 'Vargas', 'Salazar', 'Flores', 'Mendez', 'Rivera', 'Gomez'];
 
         for ($i = 1; $i <= 20; $i++) {

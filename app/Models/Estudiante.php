@@ -18,6 +18,7 @@ class Estudiante extends Authenticatable
         'nombre',
         'apellido',
         'correo',
+        'cohorte_ingreso',
         'password',
         'es_traspaso',
     ];
@@ -30,6 +31,7 @@ class Estudiante extends Authenticatable
     {
         return [
             'password'    => 'hashed',
+            'cohorte_ingreso' => 'integer',
             'es_traspaso' => 'boolean',
         ];
     }
