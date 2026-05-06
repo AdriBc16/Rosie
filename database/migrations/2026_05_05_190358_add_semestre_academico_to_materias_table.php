@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('materias', function (Blueprint $table) {
-            $table->unsignedTinyInteger('semestre_academico')->nullable()->after('año_academico');
+            $table->unsignedTinyInteger('semestre_academico')->nullable()->after('anio_academico');
             $table->index('semestre_academico');
         });
     }

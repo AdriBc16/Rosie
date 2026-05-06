@@ -14,7 +14,7 @@ class Materia extends Model
     protected $fillable = [
         'nombre',
         'horas_semanales',
-        'año_academico',
+        'anio_academico',
         'semestre_academico',
     ];
 

@@ -17,15 +17,17 @@ Route::prefix('/portal/api')->group(function (): void {
         return response()->json(['message' => 'No autenticado'], 401);
     })->name('portal.login');
 
-    Route::middleware('guest.portal')->group(function (): void {
-        Route::post('/login', [AuthController::class, 'login']);
-        Route::post('/register', [AuthController::class, 'register']);
-    });
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
 
 
     Route::post('/logout', [AuthController::class, 'logout'])
         ->middleware('auth.portal')
         ->name('portal.logout');
+
+    Route::put('/perfil', [AuthController::class, 'updateProfile'])
+        ->middleware('auth.portal')
+        ->name('portal.api.profile.update');
 });
 
 Route::get('/portal/api/me', [AuthController::class, 'me'])
@@ -55,6 +57,7 @@ Route::middleware(['auth.portal', 'portal.role:jefe'])->group(function (): void 
         Route::post('/materias', [MateriaController::class, 'headCreateMateria'])->name('portal.api.head.subject.store');
         Route::post('/asignaciones', [MateriaController::class, 'headAssignMateria'])->name('portal.api.head.assignment.store');
         Route::post('/inscripciones', [InscripcionController::class, 'headEnrollStudent'])->name('portal.api.head.enrollment.store');
+        Route::post('/estudiantes/{idEstudiante}/horario/generar', [EstudianteController::class, 'jefeGenerateScheduleForStudent'])->name('portal.api.head.student.schedule.generate');
     });
 });
 

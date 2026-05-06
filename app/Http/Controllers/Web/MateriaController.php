@@ -20,7 +20,8 @@ class MateriaController extends Controller
         $data = $request->validate([
             'nombre' => 'required|string|max:120',
             'horas_semanales' => 'nullable|integer|min:1|max:20',
-            'año_academico' => 'nullable|integer|min:1|max:10',
+            'anio_academico' => 'nullable|integer|min:1|max:10',
+            'semestre_academico' => 'nullable|integer|min:1|max:20',
             'prerrequisitos' => 'nullable|array',
             'prerrequisitos.*' => 'integer|exists:materias,id_materia',
         ]);
@@ -29,7 +30,8 @@ class MateriaController extends Controller
             $created = Materia::query()->create([
                 'nombre' => trim($data['nombre']),
                 'horas_semanales' => $data['horas_semanales'] ?? 1,
-                'año_academico' => $data['año_academico'] ?? 1,
+                'anio_academico' => $data['anio_academico'] ?? 1,
+                'semestre_academico' => $data['semestre_academico'] ?? 1,
             ]);
 
             foreach (($data['prerrequisitos'] ?? []) as $idPrerequisito) {

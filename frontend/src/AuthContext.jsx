@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (role, correo, password) => {
     try {
+      await axios.get('/sanctum/csrf-cookie');
       const res = await axios.post('/portal/api/login', { role, correo, password });
       await fetchMe();
       return res.data;

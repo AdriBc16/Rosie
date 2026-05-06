@@ -41,7 +41,7 @@ return new class extends Migration
             $table->integer('id_materia')->autoIncrement();
             $table->string('nombre', 120);
             $table->tinyInteger('horas_semanales');
-            $table->tinyInteger('año_academico');
+            $table->tinyInteger('anio_academico');
         });
 
         Schema::create('prerrequisitos', function (Blueprint $table) {
@@ -67,9 +67,11 @@ return new class extends Migration
             $table->integer('id_disponibilidad')->autoIncrement();
             $table->integer('id_docente');
             $table->integer('id_bloque');
+            $table->integer('id_modulo');
 
             $table->foreign('id_docente')->references('id_docente')->on('docentes')->onDelete('cascade');
             $table->foreign('id_bloque')->references('id_bloque')->on('bloques_horarios')->onDelete('cascade');
+            $table->foreign('id_modulo')->references('id_modulo')->on('modulos')->onDelete('cascade');
         });
 
         Schema::create('aulas', function (Blueprint $table) {
