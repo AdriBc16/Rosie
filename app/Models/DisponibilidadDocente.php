@@ -14,6 +14,7 @@ class DisponibilidadDocente extends Model
     protected $fillable = [
         'id_docente',
         'id_bloque',
+        'id_modulo',
     ];
 
     public function docente(): BelongsTo

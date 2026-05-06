@@ -32,6 +32,8 @@ export default function TeacherDashboard() {
   const [myBlocks, setMyBlocks] = useState([]);
   const [savingDisp, setSavingDisp] = useState(false);
   const [dispFeedback, setDispFeedback] = useState('');
+  const [modulos, setModulos] = useState([]);
+  const [selectedModulo, setSelectedModulo] = useState('');
 
   const [studentsModal, setStudentsModal] = useState(null); // { title, meta, students }
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -54,14 +56,27 @@ export default function TeacherDashboard() {
     }
   };
 
-  const loadDisponibilidad = async () => {
+  const loadDisponibilidad = async (moduloId = '') => {
     try {
-      const res = await axios.get('/portal/api/docente/disponibilidad');
+      const url = moduloId ? `/portal/api/docente/disponibilidad?id_modulo=${moduloId}` : '/portal/api/docente/disponibilidad';
+      const res = await axios.get(url);
       setAllBlocks(res.data.bloques || []);
-      setMyBlocks(res.data.misBloques || []);
+      setMyBlocks(res.data.misBloques ? res.data.misBloques.map(Number) : []);
+      if (res.data.modulos) {
+        setModulos(res.data.modulos);
+      }
+      if (res.data.id_modulo_activo && !moduloId) {
+        setSelectedModulo(res.data.id_modulo_activo);
+      }
     } catch (err) {
       console.error('Error cargando disponibilidad', err);
     }
+  };
+
+  const handleModuloChange = (e) => {
+    const newModuloId = e.target.value;
+    setSelectedModulo(newModuloId);
+    loadDisponibilidad(newModuloId);
   };
 
   const toggleBlock = (id) => {
@@ -72,7 +87,10 @@ export default function TeacherDashboard() {
     setSavingDisp(true);
     setDispFeedback('');
     try {
-      await axios.post('/portal/api/docente/disponibilidad', { bloques: myBlocks });
+      await axios.post('/portal/api/docente/disponibilidad', { 
+        id_modulo: selectedModulo,
+        bloques: myBlocks 
+      });
       setDispFeedback('Disponibilidad guardada correctamente.');
     } catch (err) {
       setDispFeedback('Error: ' + (err.response?.data?.message || err.message));
@@ -197,15 +215,28 @@ export default function TeacherDashboard() {
 
             {/* Disponibilidad */}
             <div className="bg-neutral-900/40 rounded-[24px] border border-neutral-800 p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
                 <h2 className="text-lg font-bold text-white">Mis Horarios Disponibles</h2>
-                <button
-                  onClick={saveDisponibilidad}
-                  disabled={savingDisp}
-                  className="px-4 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-rose-600 to-orange-500 text-white hover:brightness-110 disabled:opacity-50 transition-all"
-                >
-                  {savingDisp ? 'Guardando...' : 'Guardar'}
-                </button>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <select 
+                    value={selectedModulo} 
+                    onChange={handleModuloChange}
+                    className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-500 w-full sm:w-auto"
+                  >
+                    {modulos.map((m) => (
+                      <option key={m.id_modulo} value={m.id_modulo}>
+                        {m.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={saveDisponibilidad}
+                    disabled={savingDisp}
+                    className="px-4 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-rose-600 to-orange-500 text-white hover:brightness-110 disabled:opacity-50 transition-all whitespace-nowrap"
+                  >
+                    {savingDisp ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
               </div>
               {dispFeedback && (
                 <div className={`mb-3 px-3 py-2 rounded-lg text-xs border ${dispFeedback.includes('Error') ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'}`}>

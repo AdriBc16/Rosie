@@ -96,12 +96,29 @@ class DocenteController extends Controller
     public function getDisponibilidad(Request $request): JsonResponse
     {
         $portalUser = $request->session()->get('portal_user');
+        $idModulo = $request->query('id_modulo');
+
         $bloques = BloqueHorario::orderBy('orden')->get();
-        $misBloques = DisponibilidadDocente::where('id_docente', $portalUser['id'])->pluck('id_bloque')->toArray();
+        $modulos = \App\Models\Modulo::with('semestre')->orderBy('fecha_inicio')->get();
+
+        if (!$idModulo && $modulos->isNotEmpty()) {
+            // Default to the active or next module
+            $active = \App\Models\Modulo::where('fecha_inicio', '<=', now())
+                ->where('fecha_final', '>=', now())
+                ->first();
+            $idModulo = $active ? $active->id_modulo : $modulos->first()->id_modulo;
+        }
+
+        $misBloques = DisponibilidadDocente::where('id_docente', $portalUser['id'])
+            ->when($idModulo, fn($q) => $q->where('id_modulo', $idModulo))
+            ->pluck('id_bloque')
+            ->toArray();
 
         return response()->json([
             'bloques' => $bloques,
-            'misBloques' => $misBloques
+            'misBloques' => $misBloques,
+            'modulos' => $modulos,
+            'id_modulo_activo' => $idModulo
         ]);
     }
 
@@ -109,15 +126,20 @@ class DocenteController extends Controller
     {
         $portalUser = $request->session()->get('portal_user');
         $request->validate([
+            'id_modulo' => 'required|exists:modulos,id_modulo',
             'bloques' => 'array',
             'bloques.*' => 'exists:bloques_horarios,id_bloque'
         ]);
 
         DB::transaction(function() use ($portalUser, $request) {
-            DisponibilidadDocente::where('id_docente', $portalUser['id'])->delete();
+            DisponibilidadDocente::where('id_docente', $portalUser['id'])
+                ->where('id_modulo', $request->id_modulo)
+                ->delete();
+                
             foreach ($request->bloques as $idBloque) {
                 DisponibilidadDocente::create([
                     'id_docente' => $portalUser['id'],
+                    'id_modulo' => $request->id_modulo,
                     'id_bloque' => $idBloque
                 ]);
             }

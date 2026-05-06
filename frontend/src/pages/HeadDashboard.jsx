@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
 const INSCRIPCION_BASE_YEAR = 2022;
@@ -39,7 +39,7 @@ export default function HeadDashboard() {
 
   const [selectedCell, setSelectedCell] = useState(null);
   const [studentsYearModal, setStudentsYearModal] = useState(null);
-  const [form, setForm] = useState({ id_materia: '', id_docente: '', id_aula: '', id_bloque: '' });
+  const [form, setForm] = useState({ id_materia: '', id_semestre: '', id_modulo: '', id_docente: '', id_aula: '', id_bloque: '', enrollment_mode: 'none' });
   const [graphModal, setGraphModal] = useState(null); // { type: 'year'|'full', yearNumber?: number }
   const [graphZoom, setGraphZoom] = useState(1);
   const [hoveredYear, setHoveredYear] = useState(null);
@@ -632,6 +632,8 @@ export default function HeadDashboard() {
         id_docente: Number(form.id_docente),
         id_bloque: Number(form.id_bloque),
         id_aula: Number(form.id_aula),
+        id_modulo: Number(form.id_modulo),
+        enrollment_mode: form.enrollment_mode || 'none',
       };
       const res = await axios.post('/portal/api/jefe/asignaciones', payload);
       setFeedback(res.data?.message || 'Asignación creada');
@@ -741,37 +743,7 @@ export default function HeadDashboard() {
                           </button>
                         </div>
                       </div>
-                      {hoveredYear === yearNumber && (
-                        <div className="absolute right-4 top-14 z-20 w-[360px] rounded-xl border border-cyan-500/40 bg-[#0e171a] p-3 shadow-2xl shadow-cyan-900/20">
-                          <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-widest mb-2">Materias que puede cursar</div>
-                          <div className="text-[10px] text-neutral-400 mb-2">Simulación para {yearLabel(yearNumber)} con {hoverInfo.approvedCount} materias aprobadas antes de iniciar.</div>
-                          <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-                            {availablePreview.length === 0 && <div className="text-[11px] text-neutral-500">No hay materias habilitadas con esta simulación.</div>}
-                            {availablePreview.map((m) => (
-                              <div key={`can-${yearNumber}-${m.id_materia}`} className="text-[11px] text-neutral-200">
-                                {m.nombre} <span className="text-neutral-500">({m.anio_academico}A - S{m.semestre_academico})</span>
-                              </div>
-                            ))}
-                            {hoverInfo.availableNow.length > availablePreview.length && (
-                              <div className="text-[10px] text-neutral-500">+{hoverInfo.availableNow.length - availablePreview.length} más...</div>
-                            )}
-                          </div>
-                          <div className="mt-3 pt-2 border-t border-neutral-700/60">
-                            <div className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">Estas materias abren</div>
-                            <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                              {opensPreview.length === 0 && <div className="text-[10px] text-neutral-500">Sin aperturas directas.</div>}
-                              {opensPreview.map((m) => (
-                                <div key={`open-${yearNumber}-${m.id_materia}`} className="text-[10px] text-neutral-300">
-                                  {m.nombre}
-                                </div>
-                              ))}
-                              {hoverInfo.opensNext.length > opensPreview.length && (
-                                <div className="text-[10px] text-neutral-500">+{hoverInfo.opensNext.length - opensPreview.length} más...</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                         {[semA, semB].map((semestre) => (
                           <div key={`${yearNumber}-s${semestre}`} className="rounded-xl border border-neutral-800 bg-[#161616] p-3">
@@ -820,7 +792,15 @@ export default function HeadDashboard() {
 
             <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
               <h3 className="text-xl font-bold mb-4">Asignar docente a materia (backend)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
+                <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_semestre} onChange={(e) => setForm((p) => ({ ...p, id_semestre: e.target.value }))}>
+                  <option value="">Semestre</option>
+                  {(catalog.semestres || []).map((s) => <option key={s.id_semestre} value={s.id_semestre}>{s.nombre}</option>)}
+                </select>
+                <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value }))}>
+                  <option value="">Modulo</option>
+                  {(catalog.modulos || []).filter(m => !form.id_semestre || m.id_semestre == form.id_semestre).map((m) => <option key={m.id_modulo} value={m.id_modulo}>{m.nombre}</option>)}
+                </select>
                 <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
                   <option value="">Materia</option>
                   {(catalog.materias || []).map((m) => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
@@ -836,6 +816,11 @@ export default function HeadDashboard() {
                 <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_aula} onChange={(e) => setForm((p) => ({ ...p, id_aula: e.target.value }))}>
                   <option value="">Aula</option>
                   {(catalog.aulas || []).map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)}
+                </select>
+                <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.enrollment_mode} onChange={(e) => setForm((p) => ({ ...p, enrollment_mode: e.target.value }))}>
+                  <option value="none">Solo asignar docente</option>
+                  <option value="all">Inscribir a todos (All)</option>
+                  {(catalog.estudiantes || []).map((est) => <option key={`est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido} (Especial)</option>)}
                 </select>
               </div>
               {selectedCell && (

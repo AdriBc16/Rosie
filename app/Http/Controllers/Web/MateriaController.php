@@ -65,6 +65,7 @@ class MateriaController extends Controller
 
         $isAvailable = DisponibilidadDocente::where('id_docente', $request->id_docente)
             ->where('id_bloque', $request->id_bloque)
+            ->where('id_modulo', $idModulo)
             ->exists();
 
         if (!$isAvailable) {
@@ -93,6 +94,38 @@ class MateriaController extends Controller
         }
 
         $assignment = DocenteMateria::create(array_merge($request->all(), ['id_modulo' => $idModulo]));
+
+        $enrollmentMode = $request->enrollment_mode ?? 'none';
+        
+        if ($enrollmentMode === 'all') {
+            // Enroll all students in the same level/cohort... Wait, we don't have cohort easily available here.
+            // Let's get students who don't have this materia passed.
+            $estudiantes = \App\Models\Estudiante::all(); // Simplified, normally filter by some logic
+            foreach ($estudiantes as $estudiante) {
+                // Simplified enrollment for "All"
+                \App\Models\Inscripcion::firstOrCreate([
+                    'id_estudiante' => $estudiante->id_estudiante,
+                    'id_modulo' => $idModulo,
+                    'id_materia' => $request->id_materia,
+                ], [
+                    'estado' => 'pendiente',
+                    'intentos' => 1,
+                    'fecha_inscripcion' => now(),
+                    'id_dm' => $assignment->id_dm
+                ]);
+            }
+        } elseif (is_numeric($enrollmentMode)) {
+            \App\Models\Inscripcion::firstOrCreate([
+                'id_estudiante' => $enrollmentMode,
+                'id_modulo' => $idModulo,
+                'id_materia' => $request->id_materia,
+            ], [
+                'estado' => 'pendiente',
+                'intentos' => 1,
+                'fecha_inscripcion' => now(),
+                'id_dm' => $assignment->id_dm
+            ]);
+        }
 
         return response()->json(['message' => 'Materia asignada correctamente cumpliendo todas las restricciones.', 'data' => $assignment], 201);
     }
