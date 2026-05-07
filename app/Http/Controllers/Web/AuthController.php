@@ -117,7 +117,7 @@ class AuthController extends Controller
 
         if ($portalUser['role'] === 'estudiante') {
             $inscripciones = Inscripcion::query()
-                ->with(['materia:id_materia,nombre', 'modulo:id_modulo,fecha_inicio,fecha_final,creditos'])
+                ->with(['materia:id_materia,nombre,creditos', 'modulo:id_modulo,fecha_inicio,fecha_final'])
                 ->where('id_estudiante', $portalUser['id'])
                 ->whereIn('estado', ['cursando', 'pendiente'])
                 ->get();
@@ -130,13 +130,13 @@ class AuthController extends Controller
                     'nombre'       => $i->modulo?->nombre,
                     'fecha_inicio' => $i->modulo?->fecha_inicio,
                     'fecha_final'  => $i->modulo?->fecha_final,
-                    'creditos'     => $i->modulo?->creditos,
+                    'creditos_materia' => $i->materia?->creditos,
                 ],
                 'estado'           => $i->estado,
                 'intentos'         => $i->intentos,
             ]);
 
-            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
+            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->materia?->creditos ?? 0);
             
             $data['horario'] = HorarioGenerado::query()
                 ->with([

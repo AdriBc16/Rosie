@@ -42,7 +42,7 @@ class DashboardController extends Controller
 
         $modulos = Modulo::query()
             ->orderBy('fecha_inicio')
-            ->get(['id_modulo', 'nombre', 'fecha_inicio', 'fecha_final', 'id_semestre', 'creditos', 'numero_en_semestre']);
+            ->get(['id_modulo', 'nombre', 'fecha_inicio', 'fecha_final', 'id_semestre', 'numero_en_semestre']);
 
         $semestres = Semestre::query()
             ->orderBy('numero')
