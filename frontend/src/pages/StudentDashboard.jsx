@@ -58,8 +58,8 @@ export default function StudentDashboard() {
     setCargandoSugerencias(true);
     setSugerenciasError('');
     try {
-      const res = await axios.get('/portal/api/estudiante/horario/sugerencias', { params: { top: 3 } });
-      setSugerencias(res.data?.data?.suggestions || []);
+      const res = await axios.get('/portal/api/estudiante/horario/sugerencias');
+      setSugerencias(res.data?.data?.modulos || []);
     } catch (err) {
       setSugerencias([]);
       setSugerenciasError(err.response?.data?.message || 'No se pudo cargar sugerencias de horario.');
@@ -350,8 +350,8 @@ export default function StudentDashboard() {
                   {sugerencias.map((s, idx) => (
                     <div key={`sug-${idx}`} className="rounded-xl border border-neutral-800 bg-[#131313] p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-bold text-neutral-100">Sugerencia #{idx + 1}</p>
-                        <p className="text-xs text-neutral-400">{s.subjects_count} materias · {s.total_credits} créditos</p>
+                        <p className="text-sm font-bold text-neutral-100">Modulo {s.modulo?.numero_en_semestre || idx + 1}</p>
+                        <p className="text-xs text-neutral-400">{s.suggested_count || 0} de 2 materias</p>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {(s.items || []).map((it) => (
@@ -407,5 +407,6 @@ export default function StudentDashboard() {
     </div>
   );
 }
+
 
 

@@ -18,15 +18,15 @@ use Illuminate\Support\Facades\DB;
 class EstudianteController extends Controller
 {
     private const CREDIT_LIMIT = 40;
-    private const DEFAULT_TOP_SUGGESTIONS = 5;
-    private const HARD_MAX_SUGGESTIONS = 20;
+    private const TARGET_MATERIAS_POR_MODULO = 2;
+    private const MAX_MATERIAS_POR_MODULO = 3;
 
     public function jefeGenerateScheduleForStudent(Request $request): JsonResponse
     {
         $request->validate([
             'id_estudiante' => 'required|integer|exists:estudiantes,id_estudiante',
         ]);
-        $idEstudiante = $request->id_estudiante;
+        $idEstudiante = (int) $request->id_estudiante;
 
         $inscripciones = Inscripcion::query()
             ->with(['materia', 'modulo'])
@@ -40,7 +40,7 @@ class EstudianteController extends Controller
 
         $totalCredits = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
         if ($totalCredits > self::CREDIT_LIMIT) {
-            return response()->json(['message' => "El estudiante excede el limite de ".self::CREDIT_LIMIT." creditos (Total: $totalCredits)."], 422);
+            return response()->json(['message' => 'El estudiante excede el limite de creditos.'], 422);
         }
 
         return DB::transaction(function () use ($idEstudiante, $inscripciones) {
@@ -63,9 +63,9 @@ class EstudianteController extends Controller
                 if ($asignacion && $asignacion->id_bloque) {
                     $key = "{$asignacion->id_bloque}_{$asignacion->id_modulo}";
                     if (isset($bloquesOcupados[$key])) {
-                        throw new \Exception("Colision: '{$i->materia->nombre}' y '{$bloquesOcupados[$key]}' coinciden en el mismo bloque.");
+                        throw new \Exception('Colision de bloque en horario.');
                     }
-                    $bloquesOcupados[$key] = $i->materia->nombre;
+                    $bloquesOcupados[$key] = true;
 
                     DetalleHorario::create([
                         'id_horario' => $horario->id_horario,
@@ -83,78 +83,21 @@ class EstudianteController extends Controller
 
     public function generateSchedule(Request $request): JsonResponse
     {
-        $portalUser = $request->session()->get('portal_user');
-        $idEstudiante = $portalUser['id'];
-
-        $inscripciones = Inscripcion::query()
-            ->with(['materia', 'modulo'])
-            ->where('id_estudiante', $idEstudiante)
-            ->whereIn('estado', ['cursando', 'pendiente'])
-            ->get();
-
-        if ($inscripciones->isEmpty()) {
-            return response()->json(['message' => 'No tienes materias inscritas para generar horario.'], 422);
-        }
-
-        $totalCredits = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
-        if ($totalCredits > self::CREDIT_LIMIT) {
-            return response()->json(['message' => "Excediste el limite de ".self::CREDIT_LIMIT." creditos (Total: $totalCredits). No se puede generar el horario."], 422);
-        }
-
-        return DB::transaction(function () use ($idEstudiante, $inscripciones) {
-            HorarioGenerado::where('id_estudiante', $idEstudiante)->delete();
-
-            $horario = HorarioGenerado::create([
-                'id_estudiante' => $idEstudiante,
-                'id_modulo' => $inscripciones->first()->id_modulo,
-                'estado' => 'confirmado',
-                'fecha_generacion' => now(),
-            ]);
-
-            $bloquesOcupados = [];
-
-            foreach ($inscripciones as $i) {
-                $asignacion = DocenteMateria::where('id_materia', $i->id_materia)
-                    ->where('id_modulo', $i->id_modulo)
-                    ->first();
-
-                if ($asignacion && $asignacion->id_bloque) {
-                    $key = "{$asignacion->id_bloque}_{$asignacion->id_modulo}";
-
-                    if (isset($bloquesOcupados[$key])) {
-                        $materiaChoque = $bloquesOcupados[$key];
-                        throw new \Exception("Colision detectada: Las materias '{$i->materia->nombre}' y '{$materiaChoque}' coinciden en el mismo bloque y modulo.");
-                    }
-
-                    $bloquesOcupados[$key] = $i->materia->nombre;
-
-                    DetalleHorario::create([
-                        'id_horario' => $horario->id_horario,
-                        'id_materia' => $i->id_materia,
-                        'id_docente' => $asignacion->id_docente,
-                        'id_bloque' => $asignacion->id_bloque,
-                        'id_aula' => $asignacion->id_aula,
-                    ]);
-                }
-            }
-
-            return response()->json(['message' => 'Horario generado con exito, sincronizando multiples modulos.']);
-        });
+        // Mantenido por compatibilidad. El flujo nuevo usa sugerencias.
+        return response()->json(['message' => 'Usa el endpoint de sugerencias de horario.'], 200);
     }
 
     public function suggestSchedules(Request $request): JsonResponse
     {
         $request->validate([
             'id_modulo' => 'nullable|integer|exists:modulos,id_modulo',
-            'top' => 'nullable|integer|min:1|max:20',
         ]);
 
         $portalUser = $request->session()->get('portal_user');
         $idEstudiante = (int) $portalUser['id'];
         $requestedModulo = $request->integer('id_modulo');
         $activeModulo = $this->getActiveModuloId();
-        $idModulo = (int) ($requestedModulo ?: $activeModulo);
-        $top = (int) min((int) ($request->integer('top') ?: self::DEFAULT_TOP_SUGGESTIONS), self::HARD_MAX_SUGGESTIONS);
+        $baseModuloId = (int) ($requestedModulo ?: $activeModulo);
 
         $approvedIds = $this->approvedMateriaIds($idEstudiante);
         $prereqByMateria = Prerequisito::query()
@@ -163,215 +106,205 @@ class EstudianteController extends Controller
             ->map(fn (Collection $rows) => $rows->pluck('id_materia_prerrequisito')->map(fn ($id) => (int) $id)->all());
 
         $offersAll = DocenteMateria::query()
-            ->with(['materia:id_materia,nombre', 'docente:id_docente,nombre,apellido', 'bloque:id_bloque,nombre,hora_inicio,hora_fin', 'aula:id_aula,nombre', 'modulo:id_modulo,nombre,creditos,fecha_inicio,fecha_final'])
+            ->with([
+                'materia:id_materia,nombre',
+                'docente:id_docente,nombre,apellido',
+                'bloque:id_bloque,nombre,hora_inicio,hora_fin',
+                'aula:id_aula,nombre',
+                'modulo:id_modulo,nombre,numero_en_semestre,fecha_inicio,fecha_final,id_semestre',
+            ])
             ->whereNotNull('id_bloque')
             ->get();
 
         if ($offersAll->isEmpty()) {
             return response()->json([
                 'data' => [
-                    'id_modulo' => null,
-                    'credit_limit' => self::CREDIT_LIMIT,
-                    'eligible_materias' => [],
-                    'suggestions' => [],
-                    'unresolved' => [],
+                    'id_semestre' => null,
+                    'target_materias_por_modulo' => self::TARGET_MATERIAS_POR_MODULO,
+                    'max_materias_por_modulo' => self::MAX_MATERIAS_POR_MODULO,
+                    'modulos' => [],
                 ],
             ]);
         }
 
-        // Si no envían módulo o el activo no sirve, elegir automáticamente el módulo con más materias habilitadas.
-        $candidateModuleIds = $offersAll->pluck('id_modulo')->map(fn ($id) => (int) $id)->unique()->values()->all();
-        if ($idModulo) {
-            $candidateModuleIds = array_values(array_unique(array_merge([$idModulo], $candidateModuleIds)));
-        }
+        $currentYear = (int) now()->format('Y');
+        $currentMonth = (int) now()->format('n');
+        $isFirstCalendarSemester = $currentMonth <= 7;
+        $periodLabel = $isFirstCalendarSemester ? 'enero-julio' : 'julio-diciembre';
+        $windowStart = $isFirstCalendarSemester ? "{$currentYear}-01-01" : "{$currentYear}-07-01";
+        $windowEnd = $isFirstCalendarSemester ? "{$currentYear}-07-31" : "{$currentYear}-12-31";
 
-        $bestModulo = null;
-        $bestOffers = collect();
-        $bestEligibleIds = [];
+        $semModuloIds = Modulo::query()
+            ->whereBetween('fecha_inicio', [$windowStart, $windowEnd])
+            ->orderBy('fecha_inicio')
+            ->orderBy('numero_en_semestre')
+            ->limit(3)
+            ->pluck('id_modulo')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-        foreach ($candidateModuleIds as $candidateModuloId) {
-            $offers = $offersAll->where('id_modulo', $candidateModuloId)->values();
-            if ($offers->isEmpty()) {
-                continue;
-            }
-
-            $alreadyEnrolled = Inscripcion::query()
-                ->where('id_estudiante', $idEstudiante)
-                ->where('id_modulo', $candidateModuloId)
-                ->pluck('id_materia')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-            $alreadySet = array_fill_keys($alreadyEnrolled, true);
-
-            $eligibleIds = $offers
-                ->pluck('id_materia')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->filter(function (int $idMateria) use ($approvedIds, $prereqByMateria, $alreadySet): bool {
-                    if (isset($alreadySet[$idMateria])) {
-                        return false;
-                    }
-                    $prereqs = $prereqByMateria[$idMateria] ?? [];
-                    foreach ($prereqs as $idReq) {
-                        if (!isset($approvedIds[$idReq])) {
-                            return false;
-                        }
-                    }
-                    return true;
+        // Fallback: mismo semestre calendario en otros anios (si en el actual no hay 3 modulos).
+        if (count($semModuloIds) < 3) {
+            $fallback = Modulo::query()
+                ->when($isFirstCalendarSemester, function ($q) {
+                    $q->whereMonth('fecha_inicio', '>=', 1)->whereMonth('fecha_inicio', '<=', 7);
+                }, function ($q) {
+                    $q->whereMonth('fecha_inicio', '>=', 7)->whereMonth('fecha_inicio', '<=', 12);
                 })
-                ->values()
+                ->orderByRaw('ABS(YEAR(fecha_inicio) - ?)', [$currentYear])
+                ->orderBy('fecha_inicio')
+                ->orderBy('numero_en_semestre')
+                ->limit(3)
+                ->pluck('id_modulo')
+                ->map(fn ($id) => (int) $id)
                 ->all();
 
-            if (count($eligibleIds) > count($bestEligibleIds)) {
-                $bestModulo = (int) $candidateModuloId;
-                $bestOffers = $offers;
-                $bestEligibleIds = $eligibleIds;
+            if (!empty($fallback)) {
+                $semModuloIds = $fallback;
             }
         }
 
-        $idModulo = $bestModulo;
-        $offers = $bestOffers;
-        $eligibleMateriaIds = $bestEligibleIds;
-
-        if (!$idModulo || $offers->isEmpty()) {
+        if (empty($semModuloIds)) {
             return response()->json([
                 'data' => [
-                    'id_modulo' => null,
-                    'credit_limit' => self::CREDIT_LIMIT,
-                    'eligible_materias' => [],
-                    'suggestions' => [],
-                    'unresolved' => [],
+                    'id_semestre' => null,
+                    'periodo' => $periodLabel,
+                    'target_materias_por_modulo' => self::TARGET_MATERIAS_POR_MODULO,
+                    'max_materias_por_modulo' => self::MAX_MATERIAS_POR_MODULO,
+                    'modulos' => [],
                 ],
             ]);
         }
 
-        $eligibleSet = array_fill_keys($eligibleMateriaIds, true);
-        $eligibleOffers = $offers
-            ->filter(fn (DocenteMateria $o) => isset($eligibleSet[(int) $o->id_materia]))
-            ->groupBy('id_materia')
-            ->map(fn (Collection $group) => $group->sortBy(fn (DocenteMateria $o) => (int) $o->id_bloque)->values())
-            ->all();
-
-        $eligibleMaterias = [];
-        foreach ($eligibleMateriaIds as $idMateria) {
-            $sample = $eligibleOffers[$idMateria][0] ?? null;
-            if ($sample && $sample->materia) {
-                $eligibleMaterias[] = [
-                    'id_materia' => (int) $idMateria,
-                    'nombre' => $sample->materia->nombre,
-                ];
-            }
-        }
-
-        $subjects = collect($eligibleOffers)
-            ->map(fn (Collection $list, $idMateria) => ['id_materia' => (int) $idMateria, 'offers' => $list, 'count' => $list->count()])
-            ->sortBy('count')
-            ->values()
-            ->all();
-
-        $solutions = [];
-        $this->buildScheduleSuggestions($subjects, 0, [], [], 0, $solutions, $top);
-
-        usort($solutions, function (array $a, array $b): int {
-            if ($a['subjects_count'] !== $b['subjects_count']) {
-                return $b['subjects_count'] <=> $a['subjects_count'];
-            }
-            if ($a['total_credits'] !== $b['total_credits']) {
-                return $b['total_credits'] <=> $a['total_credits'];
-            }
-            return $a['block_span'] <=> $b['block_span'];
-        });
-
-        $unresolved = [];
-        foreach ($eligibleMateriaIds as $idMateria) {
-            if (!isset($eligibleOffers[$idMateria]) || count($eligibleOffers[$idMateria]) === 0) {
-                $unresolved[] = ['id_materia' => $idMateria, 'reason' => 'sin_oferta_en_modulo'];
-            }
+        $modulosPayload = [];
+        foreach ($semModuloIds as $idModulo) {
+            $modulosPayload[] = $this->buildModuloSuggestion(
+                $idEstudiante,
+                $idModulo,
+                $offersAll->where('id_modulo', $idModulo)->values(),
+                $approvedIds,
+                $prereqByMateria
+            );
         }
 
         return response()->json([
             'data' => [
-                'id_modulo' => $idModulo,
-                'credit_limit' => self::CREDIT_LIMIT,
-                'eligible_materias' => $eligibleMaterias,
-                'suggestions' => array_slice($solutions, 0, $top),
-                'unresolved' => $unresolved,
+                'id_semestre' => null,
+                'periodo' => $periodLabel,
+                'target_materias_por_modulo' => self::TARGET_MATERIAS_POR_MODULO,
+                'max_materias_por_modulo' => self::MAX_MATERIAS_POR_MODULO,
+                'modulos' => $modulosPayload,
             ],
         ]);
     }
 
-    private function buildScheduleSuggestions(array $subjects, int $idx, array $picked, array $usedBlocks, int $totalCredits, array &$solutions, int $top): void
+    private function buildModuloSuggestion(int $idEstudiante, int $idModulo, Collection $offers, array $approvedIds, Collection $prereqByMateria): array
     {
-        if (count($solutions) >= $top && $idx >= count($subjects)) {
-            return;
+        $moduloInfo = Modulo::query()->find($idModulo, ['id_modulo', 'nombre', 'numero_en_semestre', 'fecha_inicio', 'fecha_final']);
+
+        $alreadyEnrolled = Inscripcion::query()
+            ->where('id_estudiante', $idEstudiante)
+            ->where('id_modulo', $idModulo)
+            ->pluck('id_materia')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $alreadySet = array_fill_keys($alreadyEnrolled, true);
+
+        $eligibleMateriaIds = $offers
+            ->pluck('id_materia')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->filter(function (int $idMateria) use ($approvedIds, $prereqByMateria, $alreadySet): bool {
+                if (isset($alreadySet[$idMateria])) {
+                    return false;
+                }
+                $prereqs = $prereqByMateria[$idMateria] ?? [];
+                foreach ($prereqs as $idReq) {
+                    if (!isset($approvedIds[$idReq])) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            ->values()
+            ->all();
+
+        // Fallback operativo: si no hay elegibles estrictos, usar oferta del modulo
+        // para evitar sugerencias vacias mientras se completan prerrequisitos/historial.
+        if (count($eligibleMateriaIds) === 0) {
+            $eligibleMateriaIds = $offers
+                ->pluck('id_materia')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
         }
 
-        if ($idx >= count($subjects)) {
-            if (count($picked) === 0) {
-                return;
+        $eligibleSet = array_fill_keys($eligibleMateriaIds, true);
+        $offersByMateria = $offers
+            ->filter(fn (DocenteMateria $o) => isset($eligibleSet[(int) $o->id_materia]))
+            ->groupBy('id_materia')
+            ->map(fn (Collection $g) => $g->sortBy(fn (DocenteMateria $o) => (int) $o->id_bloque)->values());
+
+        $subjects = $offersByMateria
+            ->map(fn (Collection $list, $idMateria) => ['id_materia' => (int) $idMateria, 'offers' => $list, 'count' => $list->count()])
+            ->sortBy('count')
+            ->values();
+
+        $picked = [];
+        $usedBlocks = [];
+
+        foreach ($subjects as $subject) {
+            if (count($picked) >= self::TARGET_MATERIAS_POR_MODULO) {
+                break;
             }
-            $blocks = array_map(fn ($row) => (int) $row['bloque']['id_bloque'], $picked);
-            sort($blocks);
-            $solutions[] = [
-                'subjects_count' => count($picked),
-                'total_credits' => $totalCredits,
-                'block_span' => ($blocks[count($blocks) - 1] ?? 0) - ($blocks[0] ?? 0),
-                'items' => array_values($picked),
-            ];
-            return;
+
+            /** @var Collection<int,DocenteMateria> $subjectOffers */
+            $subjectOffers = $subject['offers'];
+            foreach ($subjectOffers as $offer) {
+                $idBloque = (int) $offer->id_bloque;
+                if (isset($usedBlocks[$idBloque])) {
+                    continue;
+                }
+
+                $usedBlocks[$idBloque] = true;
+                $picked[] = [
+                    'id_dm' => (int) $offer->id_dm,
+                    'materia' => [
+                        'id_materia' => (int) $offer->id_materia,
+                        'nombre' => $offer->materia?->nombre,
+                    ],
+                    'docente' => [
+                        'id_docente' => (int) $offer->id_docente,
+                        'nombre' => trim(($offer->docente?->nombre ?? '').' '.($offer->docente?->apellido ?? '')),
+                    ],
+                    'bloque' => [
+                        'id_bloque' => $idBloque,
+                        'nombre' => $offer->bloque?->nombre,
+                        'hora_inicio' => $offer->bloque?->hora_inicio,
+                        'hora_fin' => $offer->bloque?->hora_fin,
+                    ],
+                    'aula' => [
+                        'id_aula' => (int) ($offer->id_aula ?? 0),
+                        'nombre' => $offer->aula?->nombre,
+                    ],
+                ];
+                break;
+            }
         }
 
-        $subject = $subjects[$idx];
-        /** @var Collection<int,DocenteMateria> $offers */
-        $offers = $subject['offers'];
-
-        foreach ($offers as $offer) {
-            $idBloque = (int) $offer->id_bloque;
-            if (isset($usedBlocks[$idBloque])) {
-                continue;
-            }
-
-            $creditos = (int) ($offer->modulo?->creditos ?? 0);
-            $nextCredits = $totalCredits + $creditos;
-            if ($nextCredits > self::CREDIT_LIMIT) {
-                continue;
-            }
-
-            $usedBlocks[$idBloque] = true;
-            $picked[] = [
-                'id_dm' => (int) $offer->id_dm,
-                'materia' => [
-                    'id_materia' => (int) $offer->id_materia,
-                    'nombre' => $offer->materia?->nombre,
-                ],
-                'docente' => [
-                    'id_docente' => (int) $offer->id_docente,
-                    'nombre' => trim(($offer->docente?->nombre ?? '').' '.($offer->docente?->apellido ?? '')),
-                ],
-                'bloque' => [
-                    'id_bloque' => $idBloque,
-                    'nombre' => $offer->bloque?->nombre,
-                    'hora_inicio' => $offer->bloque?->hora_inicio,
-                    'hora_fin' => $offer->bloque?->hora_fin,
-                ],
-                'aula' => [
-                    'id_aula' => (int) ($offer->id_aula ?? 0),
-                    'nombre' => $offer->aula?->nombre,
-                ],
-                'modulo' => [
-                    'id_modulo' => (int) $offer->id_modulo,
-                    'nombre' => $offer->modulo?->nombre,
-                    'creditos' => $creditos,
-                ],
-            ];
-
-            $this->buildScheduleSuggestions($subjects, $idx + 1, $picked, $usedBlocks, $nextCredits, $solutions, $top);
-            array_pop($picked);
-            unset($usedBlocks[$idBloque]);
-        }
-
-        // Permite sugerencias parciales (no todas las materias entran sin conflicto).
-        $this->buildScheduleSuggestions($subjects, $idx + 1, $picked, $usedBlocks, $totalCredits, $solutions, $top);
+        return [
+            'modulo' => [
+                'id_modulo' => (int) ($moduloInfo->id_modulo ?? $idModulo),
+                'nombre' => $moduloInfo->nombre ?? null,
+                'numero_en_semestre' => (int) ($moduloInfo->numero_en_semestre ?? 0),
+                'fecha_inicio' => $moduloInfo->fecha_inicio ?? null,
+                'fecha_final' => $moduloInfo->fecha_final ?? null,
+            ],
+            'eligible_count' => count($eligibleMateriaIds),
+            'suggested_count' => count($picked),
+            'items' => $picked,
+        ];
     }
 
     private function approvedMateriaIds(int $idEstudiante): array
