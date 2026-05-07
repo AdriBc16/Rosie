@@ -17,33 +17,41 @@ class DocenteController extends Controller
     {
         $portalUser = $request->session()->get('portal_user');
 
+        // Consulta ultra-simplificada para diagnosticar
         $assignments = DocenteMateria::query()
             ->with([
-                'materia:id_materia,nombre',
-                'modulo:id_modulo,nombre,fecha_inicio,fecha_final,creditos',
+                'materia',
+                'modulo',
                 'bloque',
                 'aula'
             ])
-            ->withCount(['inscripciones' => fn ($q) => $q->whereColumn('inscripciones.id_modulo', 'docente_materias.id_modulo')])
             ->where('id_docente', $portalUser['id'])
-            ->orderBy('id_modulo')
             ->get();
 
         return response()->json([
             'data' => $assignments->map(fn (DocenteMateria $a) => [
                 'id_dm'              => $a->id_dm,
-                'materia'            => ['id' => $a->materia?->id_materia, 'nombre' => $a->materia?->nombre],
-                'modulo'             => [
+                'materia'            => [
+                    'id' => $a->materia?->id_materia, 
+                    'nombre' => $a->materia?->nombre ?? "Materia #{$a->id_materia}"
+                ],
+                'modulo'             => $a->id_modulo ? [
                     'id'           => $a->modulo?->id_modulo,
                     'nombre'       => $a->modulo?->nombre ?? "Módulo {$a->id_modulo}",
                     'fecha_inicio' => $a->modulo?->fecha_inicio,
                     'fecha_final'  => $a->modulo?->fecha_final,
                     'creditos'     => $a->modulo?->creditos,
+                ] : [
+                    'id'           => null,
+                    'nombre'       => 'Por definir (elección estudiante)',
+                    'fecha_inicio' => null,
+                    'fecha_final'  => null,
+                    'creditos'     => null,
                 ],
 
-                'bloque'             => $a->bloque?->nombre,
-                'aula'               => $a->aula?->nombre,
-                'estudiantes_count'  => $a->inscripciones_count,
+                'bloque'             => $a->bloque?->nombre ?? 'Por definir',
+                'aula'               => $a->aula?->nombre ?? 'Sin aula',
+                'estudiantes_count'  => Inscripcion::where('id_materia', $a->id_materia)->count(),
             ]),
         ]);
     }
@@ -68,7 +76,6 @@ class DocenteController extends Controller
         $students = Inscripcion::query()
             ->with('estudiante:id_estudiante,nombre,apellido,correo')
             ->where('id_materia', $assignment->id_materia)
-            ->where('id_modulo', $assignment->id_modulo)
             ->get()
             ->map(fn (Inscripcion $i) => [
                 'id_estudiante' => $i->estudiante?->id_estudiante,
@@ -102,7 +109,6 @@ class DocenteController extends Controller
         $modulos = \App\Models\Modulo::with('semestre')->orderBy('fecha_inicio')->get();
 
         if (!$idModulo && $modulos->isNotEmpty()) {
-            // Default to the active or next module
             $active = \App\Models\Modulo::where('fecha_inicio', '<=', now())
                 ->where('fecha_final', '>=', now())
                 ->first();

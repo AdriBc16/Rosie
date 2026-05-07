@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ProfileModal from '../components/ProfileModal';
+import logoRosie from '../assets/Rosie1.png';
 
 const BLOQUE_COLORS = {
   A: 'from-rose-500 to-pink-400',
@@ -128,7 +129,7 @@ export default function TeacherDashboard() {
       <aside className="fixed left-0 top-0 h-screen w-72 border-r border-neutral-800 bg-neutral-950 z-50 flex flex-col p-6 shadow-2xl shadow-rose-900/10">
         <div className="mb-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center font-black text-white text-lg">R</div>
+            <img src={logoRosie} alt="Logo" className="w-12 h-12 object-contain" />
             <div>
               <span className="text-2xl font-black bg-gradient-to-br from-rose-500 to-orange-400 bg-clip-text text-transparent">Rosie</span>
               <p className="text-xs text-neutral-500 mt-0.5">Portal Docente</p>

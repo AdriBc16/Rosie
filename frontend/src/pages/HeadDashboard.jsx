@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router-dom';
+import logoRosie from '../assets/Rosie1.png';
+import ProfileModal from '../components/ProfileModal';
 
 const INSCRIPCION_BASE_YEAR = 2022;
 const cohortYearFromIndex = (n) => INSCRIPCION_BASE_YEAR + (Number(n) - 1);
@@ -35,6 +37,7 @@ export default function HeadDashboard() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [showCurricula, setShowCurricula] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const [teacherFilter, setTeacherFilter] = useState('Todos');
   const [statusFilter, setStatusFilter] = useState('Todos');
@@ -694,28 +697,33 @@ export default function HeadDashboard() {
       <aside className="fixed left-0 top-0 h-full flex flex-col p-6 h-screen w-72 border-r border-neutral-800 bg-neutral-950 z-50 shadow-2xl shadow-rose-900/10">
         <div className="mb-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-white">school</span>
-            </div>
+            <img src={logoRosie} alt="Logo" className="w-12 h-12 object-contain" />
             <div>
-              <span className="text-2xl font-black bg-gradient-to-br from-rose-500 to-orange-400 bg-clip-text text-transparent">Academia Pro</span>
+              <span className="text-2xl font-black bg-gradient-to-br from-rose-500 to-orange-400 bg-clip-text text-transparent">Rosie</span>
               <p className="font-medium text-xs tracking-tight text-neutral-500 mt-1">Head of Department</p>
             </div>
           </div>
         </div>
         <nav className="flex-1 flex flex-col gap-2">
-          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'agenda' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('agenda'); window.scrollTo({top: 0, behavior: 'smooth'}); }}>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'agenda' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('agenda'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">view_module</span><span className="font-semibold text-sm">Asignar por Módulo</span>
           </a>
-          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'assign' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('assign'); window.scrollTo({top: 0, behavior: 'smooth'}); }}>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'assign' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('assign'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">person_add</span><span className="font-semibold text-sm">Asignar Docente</span>
           </a>
-          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'enroll' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('enroll'); window.scrollTo({top: 0, behavior: 'smooth'}); }}>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'enroll' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('enroll'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">person_add_alt</span><span className="font-semibold text-sm">Inscribir Alumno</span>
           </a>
         </nav>
 
         <div className="mt-auto pt-6 border-t border-neutral-800">
+          <button
+            onClick={() => setShowProfile(true)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-300 hover:bg-neutral-800 border border-transparent hover:border-neutral-700 transition-all mb-1"
+          >
+            <span className="material-symbols-outlined text-base">manage_accounts</span>
+            Editar perfil
+          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-all"
@@ -804,7 +812,7 @@ export default function HeadDashboard() {
                                           {slotItems.map((cell) => {
                                             const pendingStyle = cell.estado === 'Pendiente';
                                             return (
-                                              <button key={cell.id} onClick={() => { setActiveTab('assign'); setSelectedCell({ yearNumber, semesterNumber: semestre, moduloNumber }); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`w-full text-left p-2 rounded-lg border-l-4 ${pendingStyle ? 'border-orange-500/50 bg-orange-500/5' : 'border-rose-500 bg-rose-500/5'}`}>
+                                              <button key={cell.id} onClick={() => { setActiveTab('assign'); setSelectedCell({ yearNumber, semesterNumber: semestre, moduloNumber }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`w-full text-left p-2 rounded-lg border-l-4 ${pendingStyle ? 'border-orange-500/50 bg-orange-500/5' : 'border-rose-500 bg-rose-500/5'}`}>
                                                 <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${pendingStyle ? 'bg-orange-500/20 text-orange-400' : 'bg-rose-500/20 text-rose-400'}`}>{cell.estado}</span>
                                                 <div className="text-white text-xs font-bold mt-1">{cell.materia}</div>
                                                 <div className="text-neutral-400 text-[10px]">{cell.docente}</div>
@@ -813,7 +821,7 @@ export default function HeadDashboard() {
                                             );
                                           })}
                                           {slotItems.length === 0 && (
-                                            <button onClick={() => { setActiveTab('assign'); setSelectedCell({ yearNumber, semesterNumber: semestre, moduloNumber }); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="w-full border-2 border-dashed border-neutral-800 rounded-lg py-3 text-center text-neutral-600 hover:text-neutral-400">
+                                            <button onClick={() => { setActiveTab('assign'); setSelectedCell({ yearNumber, semesterNumber: semestre, moduloNumber }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full border-2 border-dashed border-neutral-800 rounded-lg py-3 text-center text-neutral-600 hover:text-neutral-400">
                                               <span className="material-symbols-outlined text-base">add_circle</span>
                                               <div className="text-[10px] font-bold uppercase">Asignar</div>
                                             </button>
@@ -1070,6 +1078,10 @@ export default function HeadDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {showProfile && (
+        <ProfileModal onClose={() => setShowProfile(false)} />
       )}
     </div>
   );

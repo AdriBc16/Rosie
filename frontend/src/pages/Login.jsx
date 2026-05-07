@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import logoRosie from '../assets/rosie.png';
+import logoRosie from '../assets/Rosie2.png';
 export default function Login() {
   const [role, setRole] = useState('docente');
   const [correo, setCorreo] = useState('');
@@ -38,11 +38,6 @@ export default function Login() {
             Accede a tu panel personalizado para gestionar examenes, revisar materiales y conectar con tu comunidad educativa.
           </p>
           <div className="relative w-full aspect-[4/3] overflow-hidden flex items-center justify-center">
-            {/* <img
-              alt="Portal Educativo Rosie"
-              className="w-full h-full object-cover grayscale-[0.2] hover:grayscale-0 transition-all duration-700"
-              src="https://lh3.googleusercontent.com/aida/ADBb0ujp1UHy7YCFpBwwWncHWfm09nvIVfxJ6YragUh6mYvRNQlGp7evCk_dO5xV266lPmCD3UgfhqCi7FY8lHy9BFfR1jYr72ixGT_NODgAeGReNXZW2qHyXPx38Le4EE_569zAP2fkEKDHx1PO4vs30Z26qmE9iR8r49xFNnZEYvW3e4CDZlJgwJKFWjb36Uk-h9WX1L9MLhglmWJCUKNLjJvIfocQs7WA8t0uxA2AZIW7_rhA3FjV-5XyToeq4F8bAzmfVfiaQsvPWA"
-            /> */}
             <img
               alt="Portal Educativo Rosie"
               className="w-full h-full object-contain transition-all duration-700 hover:scale-105"
