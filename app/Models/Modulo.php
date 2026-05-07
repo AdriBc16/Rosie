@@ -18,7 +18,6 @@ class Modulo extends Model
         'fecha_inicio',
         'fecha_final',
         'id_semestre',
-        'creditos',
     ];
 
 
