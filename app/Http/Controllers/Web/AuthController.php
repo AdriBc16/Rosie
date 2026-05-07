@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\PortalLoginRequest;
 use App\Models\Docente;
 use App\Models\Estudiante;
+use App\Models\HistorialMateria;
 use App\Models\Inscripcion;
+use App\Models\Materia;
 use App\Models\Modulo;
 use App\Models\HorarioGenerado;
 use Illuminate\Http\JsonResponse;
@@ -136,7 +138,7 @@ class AuthController extends Controller
                 'intentos'         => $i->intentos,
             ]);
 
-            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->materia?->creditos ?? 0);
+            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
             
             $data['horario'] = HorarioGenerado::query()
                 ->with([
