@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,8 @@ const ESTADO_STYLES = {
 
 const BLOQUE_COLORS = ['from-rose-500 to-pink-400','from-orange-500 to-amber-400','from-yellow-500 to-lime-400','from-teal-500 to-cyan-400','from-blue-500 to-violet-400','from-purple-500 to-fuchsia-400'];
 
+const CREDIT_LIMIT = 40;
+
 export default function StudentDashboard() {
   const { user, dashboardData, logout, refreshDashboard } = useAuth();
   const navigate = useNavigate();
@@ -22,22 +24,26 @@ export default function StudentDashboard() {
   const inscripciones = dashboardData?.inscripciones || [];
   const totalCredits  = dashboardData?.totalCredits || 0;
   const horario       = dashboardData?.horario || null;
+  const mallaCursada  = dashboardData?.mallaCursada || [];
 
   const [generando, setGenerando] = useState(false);
   const [horarioFeedback, setHorarioFeedback] = useState('');
   const [activeTab, setActiveTab] = useState('materias'); // 'materias' | 'horario'
   const [showProfile, setShowProfile] = useState(false);
+  const [showMallaCursada, setShowMallaCursada] = useState(false);
+  const [sugerencias, setSugerencias] = useState([]);
+  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
+  const [sugerenciasError, setSugerenciasError] = useState('');
 
-  const handleGenerarHorario = async () => {
+  const handleGenerarSugerencia = async () => {
     setGenerando(true);
     setHorarioFeedback('');
     try {
-      await axios.post('/portal/api/estudiante/horario/generar');
-      setHorarioFeedback('Horario generado correctamente.');
-      await refreshDashboard();
+      await cargarSugerencias();
+      setHorarioFeedback('Sugerencias de horario actualizadas.');
       setActiveTab('horario');
     } catch (err) {
-      setHorarioFeedback(err.response?.data?.message || 'Error al generar el horario.');
+      setHorarioFeedback(err.response?.data?.message || 'Error al generar sugerencias.');
     } finally {
       setGenerando(false);
     }
@@ -48,8 +54,28 @@ export default function StudentDashboard() {
     navigate('/login');
   };
 
-  const creditPct = Math.min((totalCredits / 29) * 100, 100);
-  const creditOver = totalCredits > 29;
+  const cargarSugerencias = async () => {
+    setCargandoSugerencias(true);
+    setSugerenciasError('');
+    try {
+      const res = await axios.get('/portal/api/estudiante/horario/sugerencias', { params: { top: 3 } });
+      setSugerencias(res.data?.data?.suggestions || []);
+    } catch (err) {
+      setSugerencias([]);
+      setSugerenciasError(err.response?.data?.message || 'No se pudo cargar sugerencias de horario.');
+    } finally {
+      setCargandoSugerencias(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'horario') {
+      cargarSugerencias();
+    }
+  }, [activeTab]);
+
+  const creditPct = Math.min((totalCredits / CREDIT_LIMIT) * 100, 100);
+  const creditOver = totalCredits > CREDIT_LIMIT;
 
   return (
     <div className="bg-black text-[#f6dddc] min-h-screen overflow-hidden">
@@ -86,7 +112,7 @@ export default function StudentDashboard() {
         <div className="mb-6 bg-neutral-900 rounded-2xl p-4 border border-neutral-800">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-neutral-500 uppercase font-bold">Créditos</p>
-            <span className={`text-sm font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}/29</span>
+            <span className={`text-sm font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}/{CREDIT_LIMIT}</span>
           </div>
           <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
             <div
@@ -158,7 +184,7 @@ export default function StudentDashboard() {
 
             <div className={`rounded-2xl border p-5 ${creditOver ? 'border-red-500/40 bg-red-500/5' : 'bg-neutral-900/40 border-neutral-800'}`}>
               <p className="text-[10px] text-neutral-500 uppercase font-bold mb-2">Total créditos</p>
-              <p className={`text-4xl font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}<span className="text-xl text-neutral-500">/29</span></p>
+              <p className={`text-4xl font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}<span className="text-xl text-neutral-500">/{CREDIT_LIMIT}</span></p>
               {creditOver && <p className="text-xs text-red-400 mt-1 font-semibold">Excede el límite semestral</p>}
             </div>
           </div>
@@ -171,6 +197,12 @@ export default function StudentDashboard() {
                   <h2 className="text-xl font-bold text-white">Mis Inscripciones Actuales</h2>
                   <p className="text-sm text-neutral-400 mt-0.5">{inscripciones.length} materias registradas</p>
                 </div>
+                <button
+                  onClick={() => setShowMallaCursada(true)}
+                  className="px-4 py-2 rounded-xl border border-neutral-700 text-xs font-semibold text-neutral-200 hover:border-cyan-500/60"
+                >
+                  Ver malla cursada
+                </button>
               </div>
 
               {inscripciones.length === 0 && (
@@ -210,9 +242,9 @@ export default function StudentDashboard() {
               <div className="bg-neutral-900/40 rounded-[24px] border border-neutral-800 p-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <h2 className="text-xl font-bold text-white">Mi Horario de Clases</h2>
+                    <h2 className="text-xl font-bold text-white">Sugerencia de Horario</h2>
                     <p className="text-sm text-neutral-400 mt-1">
-                      Genera tu horario basado en tus inscripciones actuales. Máx. 29 créditos.
+                      Genera una sugerencia con materias habilitadas (sin cruces de bloque). Max. {CREDIT_LIMIT} creditos.
                     </p>
                     {horarioFeedback && (
                       <p className={`text-sm mt-2 font-semibold ${horarioFeedback.includes('Error') || horarioFeedback.includes('error') ? 'text-red-400' : 'text-emerald-400'}`}>
@@ -221,16 +253,16 @@ export default function StudentDashboard() {
                     )}
                   </div>
                   <button
-                    onClick={handleGenerarHorario}
-                    disabled={generando || totalCredits === 0 || creditOver}
+                    onClick={handleGenerarSugerencia}
+                    disabled={generando}
                     className="px-8 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-rose-600 to-orange-500 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-rose-900/30"
                   >
-                    {generando ? 'Generando...' : '¡Generar Horario!'}
+                    {generando ? 'Generando...' : 'Generar sugerencia'}
                   </button>
                 </div>
                 {creditOver && (
                   <div className="mt-4 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
-                    Excediste el límite de 29 créditos. Contacta al jefe de carrera para ajustar tus inscripciones.
+                    Excediste el límite de {CREDIT_LIMIT} creditos. Contacta al jefe de carrera para ajustar tus inscripciones.
                   </div>
                 )}
               </div>
@@ -239,8 +271,8 @@ export default function StudentDashboard() {
               {!horario ? (
                 <div className="py-20 border-2 border-dashed border-neutral-800 rounded-2xl text-center">
                   <span className="material-symbols-outlined text-5xl text-neutral-700 mb-4 block">calendar_month</span>
-                  <p className="text-neutral-400 font-semibold text-lg">Aún no has generado tu horario</p>
-                  <p className="text-xs text-neutral-600 mt-2">Haz clic en el botón superior para procesar tus inscripciones</p>
+                  <p className="text-neutral-400 font-semibold text-lg">Aun no generaste sugerencias</p>
+                  <p className="text-xs text-neutral-600 mt-2">Haz clic en el boton superior para sugerir materias habilitadas</p>
                 </div>
               ) : (
                 <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
@@ -298,6 +330,45 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               )}
+
+              <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
+                <h3 className="text-lg font-bold text-white mb-4">Horario Sugerido</h3>
+
+                {cargandoSugerencias && (
+                  <p className="text-sm text-neutral-400">Cargando sugerencias...</p>
+                )}
+
+                {!cargandoSugerencias && sugerenciasError && (
+                  <p className="text-sm text-red-400">{sugerenciasError}</p>
+                )}
+
+                {!cargandoSugerencias && !sugerenciasError && sugerencias.length === 0 && (
+                  <p className="text-sm text-neutral-500">No hay sugerencias disponibles con tus materias habilitadas.</p>
+                )}
+
+                <div className="space-y-4">
+                  {sugerencias.map((s, idx) => (
+                    <div key={`sug-${idx}`} className="rounded-xl border border-neutral-800 bg-[#131313] p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-bold text-neutral-100">Sugerencia #{idx + 1}</p>
+                        <p className="text-xs text-neutral-400">{s.subjects_count} materias · {s.total_credits} créditos</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {(s.items || []).map((it) => (
+                          <div key={`sug-${idx}-${it.id_dm}`} className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+                            <div className="text-sm font-semibold text-white">{it.materia?.nombre}</div>
+                            <div className="text-xs text-neutral-400 mt-1">{it.docente?.nombre}</div>
+                            <div className="text-xs text-cyan-300 mt-1">
+                              Bloque {it.bloque?.nombre} ({String(it.bloque?.hora_inicio || '').slice(0, 5)} - {String(it.bloque?.hora_fin || '').slice(0, 5)})
+                            </div>
+                            <div className="text-xs text-neutral-500 mt-1">{it.aula?.nombre || 'Sin aula'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -305,6 +376,36 @@ export default function StudentDashboard() {
       {showProfile && (
         <ProfileModal onClose={() => setShowProfile(false)} />
       )}
+
+      {showMallaCursada && (
+        <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm p-6">
+          <div className="w-full max-w-4xl mx-auto rounded-2xl border border-neutral-800 bg-[#101010] flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+              <div>
+                <h3 className="text-white text-lg font-bold">Malla Curricular Cursada</h3>
+                <p className="text-xs text-neutral-400">{mallaCursada.length} materias cursadas</p>
+              </div>
+              <button onClick={() => setShowMallaCursada(false)} className="px-3 py-1.5 rounded-md bg-rose-500/20 border border-rose-500/50 text-rose-200 text-sm">Cerrar</button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {mallaCursada.length === 0 ? (
+                <div className="text-sm text-neutral-400">No hay materias cursadas registradas para este estudiante.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {mallaCursada.map((m) => (
+                    <div key={m.id_materia} className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+                      <div className="text-sm font-semibold text-neutral-100">{m.nombre}</div>
+                      <div className="text-xs text-neutral-400 mt-1">Año {m.anio_academico || '-'} · Semestre {m.semestre_academico || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+

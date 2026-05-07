@@ -12,7 +12,13 @@ import './index.css';
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user, role, loading } = useAuth();
-  if (loading) return <div>Cargando...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-sm text-neutral-300">Cargando sesión...</div>
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   if (allowedRole && role !== allowedRole) return <Navigate to="/login" replace />;
   return children;

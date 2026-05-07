@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\PortalLoginRequest;
 use App\Models\Docente;
 use App\Models\Estudiante;
+use App\Models\HistorialMateria;
 use App\Models\Inscripcion;
+use App\Models\Materia;
 use App\Models\Modulo;
 use App\Models\HorarioGenerado;
 use Illuminate\Http\JsonResponse;
@@ -137,6 +139,33 @@ class AuthController extends Controller
             ]);
 
             $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
+
+            $aprobadasIds = Inscripcion::query()
+                ->where('id_estudiante', $portalUser['id'])
+                ->where('estado', 'aprobada')
+                ->pluck('id_materia')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $historialIds = HistorialMateria::query()
+                ->where('id_estudiante', $portalUser['id'])
+                ->pluck('id_materia')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $cursadasIds = array_values(array_unique(array_merge($aprobadasIds, $historialIds)));
+            $data['mallaCursada'] = Materia::query()
+                ->whereIn('id_materia', $cursadasIds)
+                ->orderBy('semestre_academico')
+                ->orderBy('nombre')
+                ->get(['id_materia', 'nombre', 'anio_academico', 'semestre_academico'])
+                ->map(fn ($m) => [
+                    'id_materia' => (int) $m->id_materia,
+                    'nombre' => $m->nombre,
+                    'anio_academico' => (int) ($m->anio_academico ?? 0),
+                    'semestre_academico' => (int) ($m->semestre_academico ?? 0),
+                ])
+                ->values();
             
             $data['horario'] = HorarioGenerado::query()
                 ->with([

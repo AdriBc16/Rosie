@@ -170,10 +170,9 @@ class DatabaseSeeder extends Seeder
         $doc2 = Docente::create(['nombre' => 'Pedro', 'apellido' => 'Gutierrez', 'es_jefe_carrera' => false, 'correo' => 'docente2@goodorder.test', 'password' => Hash::make('UPB123')]);
         $doc3 = Docente::create(['nombre' => 'Maria', 'apellido' => 'Flores', 'es_jefe_carrera' => false, 'correo' => 'docente3@goodorder.test', 'password' => Hash::make('UPB123')]);
 
-        foreach ([[$doc1, 'A',1], [$doc1, 'B', 2], [$doc2, 'C', 3], [$doc2, 'D', 1], [$doc3, 'E',2], [$doc3, 'F', 3]] as [$doc, $bloqueNombre, $moduloNum]) {
+        foreach ([[$doc1, 'A'], [$doc1, 'B'], [$doc2, 'C'], [$doc2, 'D'], [$doc3, 'E'], [$doc3, 'F']] as [$doc, $bloqueNombre]) {
             $bloque = $bloques->firstWhere('nombre', $bloqueNombre);
-            $modulo = $modulos->firstWhere('nombre', $bloqueNombre);
-            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque, 'id_modulo' => $modulo->id_modulo]);
+            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque]);
         }
 
         // Asignaciones demo

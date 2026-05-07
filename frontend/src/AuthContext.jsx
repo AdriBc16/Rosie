@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchMe = async () => {
     try {
-      const res = await axios.get('/portal/api/me');
+      const res = await axios.get('/portal/api/me', { timeout: 8000 });
       setUser(res.data.data.user);
       setRole(res.data.data.user.role);
       setDashboardData(res.data.data);
