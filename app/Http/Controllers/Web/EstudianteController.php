@@ -17,9 +17,9 @@ use Illuminate\Support\Facades\DB;
 
 class EstudianteController extends Controller
 {
-    private const CREDIT_LIMIT = 40;
+    private const CREDIT_LIMIT = 29;
     private const TARGET_MATERIAS_POR_MODULO = 2;
-    private const MAX_MATERIAS_POR_MODULO = 3;
+    private const MAX_MATERIAS_POR_MODULO = 2; // Bajamos a 2 para que se distribuyan 6 en 3 modulos
 
     public function jefeGenerateScheduleForStudent(Request $request): JsonResponse
     {
@@ -29,18 +29,13 @@ class EstudianteController extends Controller
         $idEstudiante = (int) $request->id_estudiante;
 
         $inscripciones = Inscripcion::query()
-            ->with(['materia', 'modulo'])
+            ->with(['materia'])
             ->where('id_estudiante', $idEstudiante)
             ->whereIn('estado', ['cursando', 'pendiente'])
             ->get();
 
         if ($inscripciones->isEmpty()) {
-            return response()->json(['message' => 'El estudiante no tiene materias inscritas para generar horario.'], 422);
-        }
-
-        $totalCredits = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
-        if ($totalCredits > self::CREDIT_LIMIT) {
-            return response()->json(['message' => 'El estudiante excede el limite de creditos.'], 422);
+            return response()->json(['message' => 'El estudiante no tiene materias inscritas.'], 422);
         }
 
         return DB::transaction(function () use ($idEstudiante, $inscripciones) {
@@ -48,36 +43,55 @@ class EstudianteController extends Controller
 
             $horario = HorarioGenerado::create([
                 'id_estudiante' => $idEstudiante,
-                'id_modulo' => $inscripciones->first()->id_modulo,
+                'id_modulo' => $this->getActiveModuloId(),
                 'estado' => 'confirmado',
                 'fecha_generacion' => now(),
             ]);
 
-            $bloquesOcupados = [];
+            $materiasPorModulo = []; // id_modulo => count
 
-            foreach ($inscripciones as $i) {
-                $asignacion = DocenteMateria::where('id_materia', $i->id_materia)
-                    ->where('id_modulo', $i->id_modulo)
+            foreach ($inscripciones as $insc) {
+                // Buscamos la oferta académica vinculada
+                // Ahora SIEMPRE tiene id_modulo e id_bloque fijos
+                $vinculo = DocenteMateria::where('id_materia', $insc->id_materia)
+                    ->whereNotNull('id_modulo')
+                    ->whereNotNull('id_bloque')
                     ->first();
 
-                if ($asignacion && $asignacion->id_bloque) {
-                    $key = "{$asignacion->id_bloque}_{$asignacion->id_modulo}";
-                    if (isset($bloquesOcupados[$key])) {
-                        throw new \Exception('Colision de bloque en horario.');
-                    }
-                    $bloquesOcupados[$key] = true;
+                if (!$vinculo) continue;
 
-                    DetalleHorario::create([
-                        'id_horario' => $horario->id_horario,
-                        'id_materia' => $i->id_materia,
-                        'id_docente' => $asignacion->id_docente,
-                        'id_bloque' => $asignacion->id_bloque,
-                        'id_aula' => $asignacion->id_aula,
-                    ]);
+                // Validar límite de 3 materias por módulo para el alumno
+                $currentCount = $materiasPorModulo[$vinculo->id_modulo] ?? 
+                                Inscripcion::where('id_estudiante', $idEstudiante)
+                                    ->where('id_modulo', $vinculo->id_modulo)
+                                    ->where('id_materia', '!=', $insc->id_materia) // No contarse a sí mismo si ya está inscrito
+                                    ->count();
+                
+                if ($currentCount >= self::MAX_MATERIAS_POR_MODULO) {
+                    // Si el módulo asignado a la materia está lleno para el alumno, saltamos
+                    // (En una universidad pequeña esto debería estar coordinado por el jefe)
+                    continue; 
                 }
+
+                $materiasPorModulo[$vinculo->id_modulo] = $currentCount + 1;
+
+                // Sincronizar inscripción con el módulo fijo de la materia
+                $insc->update(['id_modulo' => $vinculo->id_modulo]);
+
+                // Registrar en el detalle real del horario
+                DetalleHorario::create([
+                    'id_horario' => $horario->id_horario,
+                    'id_materia' => $insc->id_materia,
+                    'id_docente' => $vinculo->id_docente,
+                    'id_bloque'  => $vinculo->id_bloque,
+                    'id_aula'    => $vinculo->id_aula,
+                ]);
             }
 
-            return response()->json(['message' => 'Horario del estudiante generado correctamente.', 'id_horario' => $horario->id_horario]);
+            return response()->json([
+                'message' => 'Horario sincronizado con éxito basándose en la oferta académica fija.',
+                'id_horario' => $horario->id_horario
+            ]);
         });
     }
 
@@ -255,14 +269,21 @@ class EstudianteController extends Controller
         $usedBlocks = [];
 
         foreach ($subjects as $subject) {
+            // No podemos meter más de 2 materias en un mismo módulo
             if (count($picked) >= self::TARGET_MATERIAS_POR_MODULO) {
                 break;
             }
 
             /** @var Collection<int,DocenteMateria> $subjectOffers */
             $subjectOffers = $subject['offers'];
-            foreach ($subjectOffers as $offer) {
+            
+            // Priorizar la oferta que coincida con el id_modulo actual
+            $offer = $subjectOffers->where('id_modulo', $idModulo)->first();
+
+            if ($offer) {
                 $idBloque = (int) $offer->id_bloque;
+                
+                // Evitar choques de bloque dentro del mismo módulo para el alumno
                 if (isset($usedBlocks[$idBloque])) {
                     continue;
                 }
@@ -289,7 +310,6 @@ class EstudianteController extends Controller
                         'nombre' => $offer->aula?->nombre,
                     ],
                 ];
-                break;
             }
         }
 

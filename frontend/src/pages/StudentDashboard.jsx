@@ -15,7 +15,7 @@ const ESTADO_STYLES = {
 
 const BLOQUE_COLORS = ['from-rose-500 to-pink-400','from-orange-500 to-amber-400','from-yellow-500 to-lime-400','from-teal-500 to-cyan-400','from-blue-500 to-violet-400','from-purple-500 to-fuchsia-400'];
 
-const CREDIT_LIMIT = 40;
+const CREDIT_LIMIT = 29;
 
 export default function StudentDashboard() {
   const { user, dashboardData, logout, refreshDashboard } = useAuth();
@@ -228,7 +228,7 @@ export default function StudentDashboard() {
                     <p className="text-xs text-neutral-500 mb-1">{item.modulo?.fecha_inicio} — {item.modulo?.fecha_final}</p>
                     <div className="flex items-center gap-2 mt-3">
                       <span className="material-symbols-outlined text-sm text-neutral-600">grade</span>
-                      <span className="text-xs text-neutral-400">{item.modulo?.creditos ?? '?'} créditos</span>
+                      <span className="text-xs text-neutral-400">{item.modulo?.creditos_materia ?? '?'} créditos</span>
                     </div>
                   </div>
                 ))}
@@ -239,42 +239,36 @@ export default function StudentDashboard() {
           {activeTab === 'horario' && (
             <div className="space-y-6">
               {/* Generate button */}
-              <div className="bg-neutral-900/40 rounded-[24px] border border-neutral-800 p-6">
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Sugerencia de Horario</h2>
-                    <p className="text-sm text-neutral-400 mt-1">
-                      Genera una sugerencia con materias habilitadas (sin cruces de bloque). Max. {CREDIT_LIMIT} creditos.
-                    </p>
-                    {horarioFeedback && (
-                      <p className={`text-sm mt-2 font-semibold ${horarioFeedback.includes('Error') || horarioFeedback.includes('error') ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {horarioFeedback}
-                      </p>
-                    )}
+              {/* Top Compact Section */}
+              <div className="flex items-center justify-between bg-neutral-900/40 rounded-2xl border border-neutral-800 p-4 mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                    <span className="material-symbols-outlined text-rose-400">auto_awesome</span>
                   </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Sugerencia de Horario</h2>
+                    <p className="text-[10px] text-neutral-500">Módulos equilibrados (2 materias por módulo). Max. {CREDIT_LIMIT} cr.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  {horarioFeedback && (
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20`}>
+                      {horarioFeedback}
+                    </span>
+                  )}
                   <button
                     onClick={handleGenerarSugerencia}
                     disabled={generando}
-                    className="px-8 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-rose-600 to-orange-500 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-rose-900/30"
+                    className="px-6 py-2 rounded-xl font-bold text-white text-xs bg-gradient-to-r from-rose-600 to-orange-500 hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-rose-900/20"
                   >
-                    {generando ? 'Generando...' : 'Generar sugerencia'}
+                    {generando ? '...' : 'Generar horario'}
                   </button>
                 </div>
-                {creditOver && (
-                  <div className="mt-4 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm">
-                    Excediste el límite de {CREDIT_LIMIT} creditos. Contacta al jefe de carrera para ajustar tus inscripciones.
-                  </div>
-                )}
               </div>
 
               {/* Schedule display */}
-              {!horario ? (
-                <div className="py-20 border-2 border-dashed border-neutral-800 rounded-2xl text-center">
-                  <span className="material-symbols-outlined text-5xl text-neutral-700 mb-4 block">calendar_month</span>
-                  <p className="text-neutral-400 font-semibold text-lg">Aun no generaste sugerencias</p>
-                  <p className="text-xs text-neutral-600 mt-2">Haz clic en el boton superior para sugerir materias habilitadas</p>
-                </div>
-              ) : (
+              {horario && (
                 <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>

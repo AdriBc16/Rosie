@@ -18,53 +18,112 @@ class InscripcionController extends Controller
             'id_materia'    => 'required|integer|exists:materias,id_materia',
         ]);
 
-        $idModulo = $request->id_modulo ?? $this->getActiveModuloId();
+        $idEstudiante = $request->id_estudiante;
+        $idMateria = $request->id_materia;
 
-        if (!$idModulo) {
-            return response()->json(['message' => 'No hay un módulo activo para realizar la inscripción.'], 422);
-        }
-
-        // 1. Verificar Prerrequisitos
-        $prerrequisitos = \App\Models\Prerequisito::where('id_materia', $request->id_materia)->get();
+        // 1. Verificar Prerrequisitos de la materia
+        $prerrequisitos = \App\Models\Prerequisito::where('id_materia', $idMateria)->get();
         foreach ($prerrequisitos as $p) {
-            $aprobada = Inscripcion::where('id_estudiante', $request->id_estudiante)
+            $cumple = Inscripcion::where('id_estudiante', $idEstudiante)
                 ->where('id_materia', $p->id_materia_prerrequisito)
                 ->where('estado', 'aprobada')
-                ->exists();
-            
-            $convalidada = \App\Models\HistorialMateria::where('id_estudiante', $request->id_estudiante)
+                ->exists() 
+                || 
+                \App\Models\HistorialMateria::where('id_estudiante', $idEstudiante)
                 ->where('id_materia', $p->id_materia_prerrequisito)
                 ->where('convalidada', true)
                 ->exists();
 
-            if (!$aprobada && !$convalidada) {
+            if (!$cumple) {
                 $materiaReq = Materia::find($p->id_materia_prerrequisito);
                 return response()->json([
-                    'message' => "El estudiante no cumple con los prerrequisitos. Debe aprobar primero: {$materiaReq->nombre}."
+                    'message' => "El estudiante no cumple con los prerrequisitos. Debe aprobar: {$materiaReq->nombre}."
                 ], 422);
             }
         }
 
-        // 2. Verificar si ya está inscrito
-        $exists = Inscripcion::where('id_estudiante', $request->id_estudiante)
-            ->where('id_materia', $request->id_materia)
-            ->where('id_modulo', $idModulo)
+        // 2. Lógica de selección de módulo
+        $selectedModuloId = null;
+        $errorDetail = "No se encontró un módulo con cupo disponible (máx 3 materias) o sin choques de horario.";
+
+        if ($request->filled('id_modulo')) {
+            // Caso Especial: El Jefe eligió un módulo manualmente
+            $selectedModuloId = $request->id_modulo;
+            $moduloManual = Modulo::find($selectedModuloId);
+            
+            // Validar límite incluso en caso manual
+            $countInModulo = Inscripcion::where('id_estudiante', $idEstudiante)
+                ->where('id_modulo', $selectedModuloId)
+                ->count();
+            if ($countInModulo >= 3) {
+                return response()->json(['message' => "El módulo seleccionado ya tiene el máximo de 3 materias."], 422);
+            }
+        } else {
+            // Selección Automática: Buscamos el mejor módulo disponible
+            $modulosDisponibles = Modulo::where('fecha_final', '>=', now())
+                ->orderBy('fecha_inicio')
+                ->get();
+
+            foreach ($modulosDisponibles as $modulo) {
+                // A. Verificar límite de 3 materias por módulo
+                $countInModulo = Inscripcion::where('id_estudiante', $idEstudiante)
+                    ->where('id_modulo', $modulo->id_modulo)
+                    ->count();
+
+                if ($countInModulo >= 3) continue;
+
+                // B. Verificar choque de horario
+                $asignacionNueva = \App\Models\DocenteMateria::where('id_materia', $idMateria)
+                    ->where('id_modulo', $modulo->id_modulo)
+                    ->first();
+
+                if ($asignacionNueva && $asignacionNueva->id_bloque) {
+                    $choqueHorario = Inscripcion::query()
+                        ->join('docente_materias', function($join) {
+                            $join->on('inscripciones.id_materia', '=', 'docente_materias.id_materia')
+                                 ->on('inscripciones.id_modulo', '=', 'docente_materias.id_modulo');
+                        })
+                        ->where('inscripciones.id_estudiante', $idEstudiante)
+                        ->where('inscripciones.id_modulo', $modulo->id_modulo)
+                        ->where('docente_materias.id_bloque', $asignacionNueva->id_bloque)
+                        ->exists();
+
+                    if ($choqueHorario) continue;
+                }
+
+                $selectedModuloId = $modulo->id_modulo;
+                break;
+            }
+        }
+
+        if (!$selectedModuloId) {
+            return response()->json(['message' => $errorDetail], 422);
+        }
+
+        // 3. Verificar si ya está inscrito específicamente en ese módulo (redundante pero seguro)
+        $exists = Inscripcion::where('id_estudiante', $idEstudiante)
+            ->where('id_materia', $idMateria)
+            ->where('id_modulo', $selectedModuloId)
             ->exists();
 
         if ($exists) {
-            return response()->json(['message' => 'El estudiante ya está inscrito en esta materia para el periodo actual.'], 422);
+            return response()->json(['message' => 'El estudiante ya está inscrito en esta materia en el módulo seleccionado.'], 422);
         }
 
         $inscripcion = Inscripcion::create([
-            'id_estudiante' => $request->id_estudiante,
-            'id_materia'    => $request->id_materia,
-            'id_modulo'     => $idModulo,
+            'id_estudiante' => $idEstudiante,
+            'id_materia'    => $idMateria,
+            'id_modulo'     => $selectedModuloId,
             'estado'        => 'cursando',
             'fecha_inscripcion' => now(),
             'intentos'      => 1
         ]);
 
-        return response()->json(['message' => 'Estudiante inscrito correctamente.', 'data' => $inscripcion], 201);
+        $moduloNombre = Modulo::find($selectedModuloId)->nombre;
+        return response()->json([
+            'message' => "Estudiante inscrito correctamente en el {$moduloNombre}.", 
+            'data' => $inscripcion
+        ], 201);
     }
 
     private function getActiveModuloId(): ?int

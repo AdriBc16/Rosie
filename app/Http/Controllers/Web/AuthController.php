@@ -138,7 +138,7 @@ class AuthController extends Controller
                 'intentos'         => $i->intentos,
             ]);
 
-            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->modulo?->creditos ?? 0);
+            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->materia?->creditos ?? 0);
             
             $data['horario'] = HorarioGenerado::query()
                 ->with([

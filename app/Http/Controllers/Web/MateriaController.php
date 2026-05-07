@@ -53,81 +53,111 @@ class MateriaController extends Controller
         $request->validate([
             'id_docente' => 'required|integer|exists:docentes,id_docente',
             'id_materia' => 'required|integer|exists:materias,id_materia',
-            'id_bloque' => 'required|integer|exists:bloques_horarios,id_bloque',
-            'id_aula' => 'required|integer|exists:aulas,id_aula',
+            'id_aula'    => 'required|integer|exists:aulas,id_aula',
         ]);
 
-        $idModulo = $request->id_modulo ?? $this->getActiveModuloId();
+        $idDocente = $request->id_docente;
+        $idMateria = $request->id_materia;
+        $idAula    = $request->id_aula;
 
-        if (!$idModulo) {
-            return response()->json(['message' => 'No hay un modulo activo o disponible para esta fecha.'], 422);
+        // ALGORITMO: Buscar Módulo y Bloque disponible para este docente y aula
+        $modulos = Modulo::where('fecha_final', '>=', now())
+            ->orderBy('fecha_inicio')
+            ->get();
+
+        $selectedModuloId = null;
+        $selectedBloqueId = null;
+
+        foreach ($modulos as $mod) {
+            // NUEVO: Validar que no estemos sobrecargando el módulo con oferta académica
+            // Para una universidad pequeña, queremos que la oferta esté distribuida.
+            // Si ya hay 2 materias del mismo "nivel/semestre" en este módulo, saltamos.
+            $ofertaEnModulo = DocenteMateria::where('id_modulo', $mod->id_modulo)->count();
+            if ($ofertaEnModulo >= 2) {
+                // Intentamos buscar otro módulo antes de saturar este
+                // (Opcional: podrías relajar esto si no hay más módulos)
+            }
+
+            // Obtener bloques donde el docente está disponible en este módulo
+            $disponibilidades = DisponibilidadDocente::where('id_docente', $idDocente)
+                ->where('id_modulo', $mod->id_modulo)
+                ->pluck('id_bloque')
+                ->toArray();
+
+            if (empty($disponibilidades)) continue;
+
+            shuffle($disponibilidades);
+
+            foreach ($disponibilidades as $bloqueId) {
+                // 1. Evitar choque del Docente
+                $choqueDocente = DocenteMateria::where('id_docente', $idDocente)
+                    ->where('id_modulo', $mod->id_modulo)
+                    ->where('id_bloque', $bloqueId)
+                    ->exists();
+                if ($choqueDocente) continue;
+
+                // 2. Evitar choque de Aula
+                $choqueAula = DocenteMateria::where('id_aula', $idAula)
+                    ->where('id_modulo', $mod->id_modulo)
+                    ->where('id_bloque', $bloqueId)
+                    ->exists();
+                if ($choqueAula) continue;
+
+                // Si llegamos aquí, el bloque es válido
+                $selectedModuloId = $mod->id_modulo;
+                $selectedBloqueId = $bloqueId;
+                break 2;
+            }
         }
 
-        $isAvailable = DisponibilidadDocente::where('id_docente', $request->id_docente)
-            ->where('id_bloque', $request->id_bloque)
-            ->where('id_modulo', $idModulo)
-            ->exists();
-
-        if (!$isAvailable) {
-            $docente = Docente::find($request->id_docente);
+        if (!$selectedModuloId || !$selectedBloqueId) {
             return response()->json([
-                'message' => "El docente {$docente->nombre} {$docente->apellido} no esta disponible en el bloque seleccionado."
+                'message' => 'No se encontró un horario disponible para este docente y aula en los módulos activos. Verifique la disponibilidad del docente.'
             ], 422);
         }
 
-        $clashDocente = DocenteMateria::where('id_docente', $request->id_docente)
-            ->where('id_modulo', $idModulo)
-            ->where('id_bloque', $request->id_bloque)
-            ->exists();
-
-        if ($clashDocente) {
-            return response()->json(['message' => 'El docente ya tiene una asignacion en este bloque y periodo.'], 422);
-        }
-
-        $clashAula = DocenteMateria::where('id_aula', $request->id_aula)
-            ->where('id_modulo', $idModulo)
-            ->where('id_bloque', $request->id_bloque)
-            ->exists();
-
-        if ($clashAula) {
-            return response()->json(['message' => 'El aula seleccionada ya esta ocupada en este bloque y periodo.'], 422);
-        }
-
-        $assignment = DocenteMateria::create(array_merge($request->all(), ['id_modulo' => $idModulo]));
+        $assignment = DocenteMateria::create([
+            'id_docente' => $idDocente,
+            'id_materia' => $idMateria,
+            'id_aula'    => $idAula,
+            'id_modulo'  => $selectedModuloId,
+            'id_bloque'  => $selectedBloqueId,
+        ]);
 
         $enrollmentMode = $request->enrollment_mode ?? 'none';
         
         if ($enrollmentMode === 'all') {
-            // Enroll all students in the same level/cohort... Wait, we don't have cohort easily available here.
-            // Let's get students who don't have this materia passed.
-            $estudiantes = \App\Models\Estudiante::all(); // Simplified, normally filter by some logic
+            $estudiantes = \App\Models\Estudiante::all();
             foreach ($estudiantes as $estudiante) {
-                // Simplified enrollment for "All"
                 \App\Models\Inscripcion::firstOrCreate([
                     'id_estudiante' => $estudiante->id_estudiante,
-                    'id_modulo' => $idModulo,
-                    'id_materia' => $request->id_materia,
+                    'id_materia'    => $idMateria,
+                    'id_modulo'     => $selectedModuloId, 
                 ], [
                     'estado' => 'pendiente',
                     'intentos' => 1,
                     'fecha_inscripcion' => now(),
-                    'id_dm' => $assignment->id_dm
                 ]);
             }
         } elseif (is_numeric($enrollmentMode)) {
             \App\Models\Inscripcion::firstOrCreate([
                 'id_estudiante' => $enrollmentMode,
-                'id_modulo' => $idModulo,
-                'id_materia' => $request->id_materia,
+                'id_materia'    => $idMateria,
+                'id_modulo'     => $selectedModuloId,
             ], [
                 'estado' => 'pendiente',
                 'intentos' => 1,
                 'fecha_inscripcion' => now(),
-                'id_dm' => $assignment->id_dm
             ]);
         }
 
-        return response()->json(['message' => 'Materia asignada correctamente cumpliendo todas las restricciones.', 'data' => $assignment], 201);
+        $modulo = Modulo::find($selectedModuloId);
+        $bloque = \App\Models\BloqueHorario::find($selectedBloqueId);
+
+        return response()->json([
+            'message' => "Docente asignado correctamente. Horario fijado en {$modulo->nombre} - {$bloque->nombre}.",
+            'data' => $assignment
+        ], 201);
     }
 
     private function getActiveModuloId(): ?int

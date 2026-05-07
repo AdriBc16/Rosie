@@ -625,9 +625,9 @@ export default function HeadDashboard() {
   }, [catalog.materias, catalog.prerrequisitos, maxSemestre]);
 
   const handleAssign = async () => {
-    // Permitimos asignar incluso si selectedCell es null (asignación manual)
-    if (!form.id_materia || !form.id_docente || !form.id_bloque || !form.id_aula || !form.id_modulo) {
-      setFeedback('Completa materia, docente, bloque, aula y modulo para asignar.');
+    // La asignación ahora es base: Docente + Materia + Aula. El algoritmo decidirá Módulo y Bloque.
+    if (!form.id_materia || !form.id_docente || !form.id_aula) {
+      setFeedback('Selecciona materia, docente y aula para vincular.');
       return;
     }
 
@@ -635,9 +635,7 @@ export default function HeadDashboard() {
       const payload = {
         id_materia: Number(form.id_materia),
         id_docente: Number(form.id_docente),
-        id_bloque: Number(form.id_bloque),
         id_aula: Number(form.id_aula),
-        id_modulo: Number(form.id_modulo),
         enrollment_mode: form.enrollment_mode || 'none',
       };
       const res = await axios.post('/portal/api/jefe/asignaciones', payload);
@@ -838,46 +836,35 @@ export default function HeadDashboard() {
 
             {activeTab === 'assign' && (
               <div id="assign-section" className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
-                <h3 className="text-xl font-bold mb-4">Asignar docente a materia (backend)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_semestre} onChange={(e) => setForm((p) => ({ ...p, id_semestre: e.target.value }))}>
-                    <option value="">Semestre</option>
-                    {(catalog.semestres || []).map((s) => <option key={s.id_semestre} value={s.id_semestre}>{s.nombre}</option>)}
-                  </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value }))}>
-                    <option value="">Modulo</option>
-                    {(catalog.modulos || []).filter(m => !form.id_semestre || m.id_semestre == form.id_semestre).map((m) => <option key={m.id_modulo} value={m.id_modulo}>{m.nombre}</option>)}
-                  </select>
+                <h3 className="text-xl font-bold mb-4">Vincular Docente y Aula</h3>
+                <p className="text-xs text-neutral-500 mb-6">El sistema asignará el módulo y horario más efectivo basándose en la disponibilidad del docente.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
-                    <option value="">Materia</option>
+                    <option value="">Seleccionar Materia</option>
                     {(catalog.materias || []).map((m) => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_docente} onChange={(e) => setForm((p) => ({ ...p, id_docente: e.target.value }))}>
-                    <option value="">Docente</option>
+                    <option value="">Seleccionar Docente</option>
                     {(catalog.docentes || []).filter((d) => !d.es_jefe_carrera).map((d) => <option key={d.id_docente} value={d.id_docente}>{d.nombre} {d.apellido || ''}</option>)}
                   </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_bloque} onChange={(e) => setForm((p) => ({ ...p, id_bloque: e.target.value }))}>
-                    <option value="">Bloque</option>
-                    {(catalog.bloques || []).map((b) => <option key={b.id_bloque} value={b.id_bloque}>{b.nombre}</option>)}
-                  </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_aula} onChange={(e) => setForm((p) => ({ ...p, id_aula: e.target.value }))}>
-                    <option value="">Aula</option>
+                    <option value="">Seleccionar Aula</option>
                     {(catalog.aulas || []).map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)}
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.enrollment_mode} onChange={(e) => setForm((p) => ({ ...p, enrollment_mode: e.target.value }))}>
-                    <option value="none">Solo asignar docente</option>
-                    <option value="all">Inscribir a todos (All)</option>
-                    {(catalog.estudiantes || []).map((est) => <option key={`est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido} (Especial)</option>)}
+                    <option value="none">Sin inscripción masiva</option>
+                    <option value="all">Inscribir a todos los alumnos</option>
+                    {(catalog.estudiantes || []).map((est) => <option key={`est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido} (Inscrip. Directa)</option>)}
                   </select>
                 </div>
                 {selectedCell && (
                   <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-[#2d2d2d] text-white font-bold rounded-xl">
-                    Confirmar Asignación ({yearLabel(selectedCell.yearNumber)} - Sem {yearSemesterLabel(selectedCell.semesterNumber)} - Mod {selectedCell.moduloNumber})
+                    Vincular (desde Agenda)
                   </button>
                 )}
                 {!selectedCell && (
                   <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-500">
-                    Guardar Asignación Manual
+                    Vincular Docente
                   </button>
                 )}
               </div>
@@ -888,7 +875,7 @@ export default function HeadDashboard() {
                 <h3 className="text-xl font-bold mb-4">Inscribir alumno a una materia</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value }))}>
-                    <option value="">Seleccionar Módulo</option>
+                    <option value="">Selección Automática (Mejor opción)</option>
                     {(catalog.modulos || []).map((m) => <option key={`enroll-mod-${m.id_modulo}`} value={m.id_modulo}>{m.nombre} ({formatDateShort(m.fecha_inicio)})</option>)}
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
