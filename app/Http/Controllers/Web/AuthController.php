@@ -140,11 +140,9 @@ class AuthController extends Controller
 
             $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->materia?->creditos ?? 0);
             
-            $data['horario'] = HorarioGenerado::query()
+            $horarioRaw = HorarioGenerado::query()
                 ->with([
-                    'detalles.materia.inscripciones' => function($q) use ($portalUser) {
-                        $q->where('id_estudiante', $portalUser['id'])->with('modulo');
-                    },
+                    'detalles.materia',
                     'detalles.docente', 
                     'detalles.bloque', 
                     'detalles.aula'
@@ -153,16 +151,37 @@ class AuthController extends Controller
                 ->orderBy('fecha_generacion', 'desc')
                 ->first();
 
-            if ($data['horario']) {
-                foreach ($data['horario']->detalles as $det) {
-                    $insc = $det->materia->inscripciones->first();
-                    $det->modulo_info = $insc ? [
-                        'id' => $insc->id_modulo,
-                        'nombre' => $insc->modulo?->nombre,
-                        'fecha_inicio' => $insc->modulo?->fecha_inicio,
-                        'fecha_final'  => $insc->modulo?->fecha_final,
-                    ] : null;
-                }
+            if ($horarioRaw) {
+                // Devolver en formato plano idéntico a las sugerencias
+                $detallesFlat = $horarioRaw->detalles->map(function ($det) use ($portalUser) {
+                    // Obtener el módulo desde la inscripción del alumno
+                    $insc = Inscripcion::where('id_estudiante', $portalUser['id'])
+                        ->where('id_materia', $det->id_materia)
+                        ->first();
+                    $modulo = $insc && $insc->id_modulo ? Modulo::find($insc->id_modulo) : null;
+
+                    return [
+                        'id_materia'     => $det->id_materia,
+                        'materia_nombre' => $det->materia?->nombre,
+                        'id_docente'     => $det->id_docente,
+                        'docente_nombre' => trim(($det->docente?->nombre ?? '') . ' ' . ($det->docente?->apellido ?? '')),
+                        'id_modulo'      => $modulo?->id_modulo,
+                        'modulo_nombre'  => $modulo?->nombre ?? 'Sin módulo',
+                        'id_bloque'      => $det->id_bloque,
+                        'bloque_nombre'  => $det->bloque?->nombre,
+                        'bloque_hora'    => substr($det->bloque?->hora_inicio ?? '00:00', 0, 5) . ' - ' . substr($det->bloque?->hora_fin ?? '00:00', 0, 5),
+                        'id_aula'        => $det->id_aula,
+                        'aula_nombre'    => $det->aula?->nombre,
+                    ];
+                })->values();
+
+                $data['horario'] = [
+                    'id_horario' => $horarioRaw->id_horario,
+                    'estado'     => $horarioRaw->estado,
+                    'items'      => $detallesFlat,
+                ];
+            } else {
+                $data['horario'] = null;
             }
         }
 

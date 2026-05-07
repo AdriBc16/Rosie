@@ -224,16 +224,63 @@ export default function StudentDashboard() {
               {/* Confirmed Schedule */}
               {horario && (
                 <div className="bg-neutral-900/30 rounded-[24px] border border-emerald-500/30 p-6">
-                   <h3 className="text-lg font-bold text-white mb-6">Tu Horario Confirmado</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {(horario.detalles || []).map((det, idx) => (
-                      <div key={idx} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4">
-                        <div className="text-xs font-bold text-rose-400 mb-1">Bloque {det.bloque?.nombre}</div>
-                        <h4 className="text-white font-bold text-sm mb-2">{det.materia?.nombre}</h4>
-                        <div className="text-[10px] text-neutral-500">{det.docente?.nombre}</div>
-                      </div>
-                    ))}
-                   </div>
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <span className="material-symbols-outlined">event_available</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Tu Horario Confirmado</h3>
+                      <p className="text-xs text-neutral-500">Gestión académica actual</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-10">
+                    {[1, 2, 3, 'Otros'].map((num) => {
+                      const moduloItems = (horario.items || []).filter((d) => {
+                        if (num === 'Otros') {
+                          const mName = d.modulo_nombre || "";
+                          const isKnown = [1, 2, 3].some(n => mName.includes(String(n)));
+                          return !isKnown;
+                        }
+                        const mName = d.modulo_nombre || "";
+                        return mName.includes(String(num));
+                      });
+
+                      if (moduloItems.length === 0) return null;
+
+                      return (
+                        <div key={`mod-group-${num}`} className="space-y-4">
+                          <div className="flex items-center gap-2 px-2">
+                            <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">
+                              {num === 'Otros' ? 'Otras Materias' : (moduloItems[0].modulo_nombre || `Módulo ${num}`)}
+                            </span>
+                            <div className="h-px flex-1 bg-neutral-800" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {moduloItems.map((det, idx) => (
+                              <div key={idx} className="bg-neutral-950/50 rounded-2xl border border-neutral-800 p-5 hover:border-emerald-500/30 transition-all group">
+                                <div className="flex justify-between items-start mb-3">
+                                  <div className="text-[10px] font-bold text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Bloque {det.bloque_nombre || '?'}</div>
+                                  <span className="material-symbols-outlined text-neutral-700 group-hover:text-emerald-500/50 transition-colors">calendar_today</span>
+                                </div>
+                                <h4 className="text-white font-bold text-base mb-1">{det.materia_nombre}</h4>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-5 h-5 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] text-neutral-400 font-bold uppercase">
+                                    {det.docente_nombre?.charAt(0) || 'D'}
+                                  </div>
+                                  <div className="text-xs text-neutral-400 truncate">{det.docente_nombre || 'Docente'}</div>
+                                </div>
+                                <div className="pt-3 border-t border-neutral-800/50 flex items-center justify-between text-[10px] text-neutral-500 font-medium">
+                                  <span>{det.bloque_hora || '00:00 - 00:00'}</span>
+                                  <span className="text-neutral-600 truncate ml-2">{det.aula_nombre || 'Aula'}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
