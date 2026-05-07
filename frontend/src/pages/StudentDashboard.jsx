@@ -28,24 +28,57 @@ export default function StudentDashboard() {
 
   const [generando, setGenerando] = useState(false);
   const [horarioFeedback, setHorarioFeedback] = useState('');
-  const [activeTab, setActiveTab] = useState('materias'); // 'materias' | 'horario'
+  const [activeTab, setActiveTab] = useState('materias'); 
   const [showProfile, setShowProfile] = useState(false);
   const [showMallaCursada, setShowMallaCursada] = useState(false);
-  const [sugerencias, setSugerencias] = useState([]);
-  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
-  const [sugerenciasError, setSugerenciasError] = useState('');
+  
+  const [opciones, setOpciones] = useState([]);
+  const [cargandoOpciones, setCargandoOpciones] = useState(false);
+  const [opcionesError, setOpcionesError] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
 
-  const handleGenerarSugerencia = async () => {
+  const handleGenerarOpciones = async () => {
     setGenerando(true);
     setHorarioFeedback('');
     try {
-      await cargarSugerencias();
-      setHorarioFeedback('Sugerencias de horario actualizadas.');
-      setActiveTab('horario');
+      await cargarOpciones();
+      setHorarioFeedback('Sugerencias de horario generadas.');
     } catch (err) {
-      setHorarioFeedback(err.response?.data?.message || 'Error al generar sugerencias.');
+      setHorarioFeedback('Error al generar opciones.');
     } finally {
       setGenerando(false);
+    }
+  };
+
+  const cargarOpciones = async () => {
+    setCargandoOpciones(true);
+    setOpcionesError('');
+    try {
+      const res = await axios.get('/portal/api/estudiante/horario/sugerencias');
+      setOpciones(res.data?.data?.opciones || []);
+    } catch (err) {
+      setOpciones([]);
+      setOpcionesError(err.response?.data?.message || 'No se pudieron cargar opciones.');
+    } finally {
+      setCargandoOpciones(false);
+    }
+  };
+
+  const handleConfirmarOpcion = async (opcion) => {
+    if (!window.confirm(`¿Estás seguro de elegir la ${opcion.label}? Esto fijará el horario de tus materias.`)) return;
+    
+    setConfirmando(true);
+    try {
+      await axios.post('/portal/api/estudiante/horario/confirmar', {
+        items: opcion.items
+      });
+      setHorarioFeedback('¡Horario confirmado con éxito!');
+      setOpciones([]);
+      refreshDashboard(); // Recargar datos para ver el horario confirmado
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al confirmar horario.');
+    } finally {
+      setConfirmando(false);
     }
   };
 
@@ -53,26 +86,6 @@ export default function StudentDashboard() {
     await logout();
     navigate('/login');
   };
-
-  const cargarSugerencias = async () => {
-    setCargandoSugerencias(true);
-    setSugerenciasError('');
-    try {
-      const res = await axios.get('/portal/api/estudiante/horario/sugerencias');
-      setSugerencias(res.data?.data?.modulos || []);
-    } catch (err) {
-      setSugerencias([]);
-      setSugerenciasError(err.response?.data?.message || 'No se pudo cargar sugerencias de horario.');
-    } finally {
-      setCargandoSugerencias(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'horario') {
-      cargarSugerencias();
-    }
-  }, [activeTab]);
 
   const creditPct = Math.min((totalCredits / CREDIT_LIMIT) * 100, 100);
   const creditOver = totalCredits > CREDIT_LIMIT;
@@ -120,7 +133,6 @@ export default function StudentDashboard() {
               style={{ width: `${creditPct}%` }}
             />
           </div>
-          {creditOver && <p className="text-[10px] text-red-400 mt-1 font-semibold">Límite excedido</p>}
         </div>
 
         <div className="pt-4 border-t border-neutral-800">
@@ -130,14 +142,7 @@ export default function StudentDashboard() {
             <p className="text-xs text-neutral-500 truncate">{user?.email}</p>
           </div>
           <button
-            onClick={() => setShowProfile(true)}
-            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-300 hover:bg-neutral-800 border border-transparent hover:border-neutral-700 transition-all mb-1"
-          >
-            <span className="material-symbols-outlined text-base">manage_accounts</span>
-            Editar perfil
-          </button>
-          <button
-            onClick={handleLogout}
+            onClick={() => handleLogout()}
             className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-all"
           >
             <span className="material-symbols-outlined text-base">logout</span>
@@ -156,79 +161,49 @@ export default function StudentDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">Estudiante</span>
-            {user?.es_traspaso && (
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Traspaso</span>
-            )}
           </div>
         </header>
 
         <div className="mt-16 p-8 overflow-y-auto h-[calc(100vh-64px)] space-y-6">
-          {/* Profile cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-neutral-900/40 rounded-2xl border border-neutral-800 p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-white text-xl">person</span>
+          {/* Top Compact Section */}
+          <div className="flex items-center justify-between bg-neutral-900/40 rounded-2xl border border-neutral-800 p-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                <span className="material-symbols-outlined text-rose-400">auto_awesome</span>
               </div>
               <div>
-                <p className="text-[10px] text-neutral-500 uppercase font-bold mb-0.5">Estudiante</p>
-                <p className="text-white font-bold text-sm leading-tight">{user?.name}</p>
-                <p className="text-xs text-neutral-400 truncate">{user?.email}</p>
+                <h2 className="text-base font-bold text-white">Generar Opciones de Horario</h2>
+                <p className="text-[10px] text-neutral-500">Te daremos 3 combinaciones posibles basadas en tus inscripciones.</p>
               </div>
             </div>
-
-            <div className="bg-neutral-900/40 rounded-2xl border border-neutral-800 p-5">
-              <p className="text-[10px] text-neutral-500 uppercase font-bold mb-2">Materias activas</p>
-              <p className="text-4xl font-black text-white">{inscripciones.length}</p>
-              <p className="text-xs text-neutral-500 mt-1">inscripciones en curso</p>
-            </div>
-
-            <div className={`rounded-2xl border p-5 ${creditOver ? 'border-red-500/40 bg-red-500/5' : 'bg-neutral-900/40 border-neutral-800'}`}>
-              <p className="text-[10px] text-neutral-500 uppercase font-bold mb-2">Total créditos</p>
-              <p className={`text-4xl font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}<span className="text-xl text-neutral-500">/{CREDIT_LIMIT}</span></p>
-              {creditOver && <p className="text-xs text-red-400 mt-1 font-semibold">Excede el límite semestral</p>}
+            
+            <div className="flex items-center gap-4">
+              {horarioFeedback && (
+                <span className={`text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20`}>
+                  {horarioFeedback}
+                </span>
+              )}
+              <button
+                onClick={handleGenerarOpciones}
+                disabled={generando}
+                className="px-6 py-2 rounded-xl font-bold text-white text-xs bg-gradient-to-r from-rose-600 to-orange-500 hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-rose-900/20"
+              >
+                {generando ? '...' : 'Generar 3 opciones'}
+              </button>
             </div>
           </div>
 
           {/* Tabs content */}
           {activeTab === 'materias' && (
             <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-white">Mis Inscripciones Actuales</h2>
-                  <p className="text-sm text-neutral-400 mt-0.5">{inscripciones.length} materias registradas</p>
-                </div>
-                <button
-                  onClick={() => setShowMallaCursada(true)}
-                  className="px-4 py-2 rounded-xl border border-neutral-700 text-xs font-semibold text-neutral-200 hover:border-cyan-500/60"
-                >
-                  Ver malla cursada
-                </button>
-              </div>
-
-              {inscripciones.length === 0 && (
-                <div className="py-16 border-2 border-dashed border-neutral-800 rounded-2xl text-center">
-                  <span className="material-symbols-outlined text-4xl text-neutral-700 mb-3 block">menu_book</span>
-                  <p className="text-neutral-400 font-semibold">No tienes inscripciones activas</p>
-                  <p className="text-xs text-neutral-600 mt-1">El jefe de carrera te inscribirá en materias</p>
-                </div>
-              )}
-
+              <h2 className="text-xl font-bold text-white mb-6">Mis Inscripciones Actuales</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {inscripciones.map((item) => (
-                  <div key={item.id_inscripcion} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4 hover:border-rose-500/40 transition-all">
-                    <div className="flex items-start justify-between mb-3">
-                      <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20">
-                        {item.modulo?.nombre || 'Módulo'}
-                      </span>
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold border ${ESTADO_STYLES[item.estado] || ESTADO_STYLES.pendiente}`}>
-                        {item.estado}
-                      </span>
-                    </div>
+                  <div key={item.id_inscripcion} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4">
                     <h3 className="text-white font-bold text-sm mb-2">{item.materia || 'Sin nombre'}</h3>
-                    <p className="text-xs text-neutral-500 mb-1">{item.modulo?.fecha_inicio} — {item.modulo?.fecha_final}</p>
                     <div className="flex items-center gap-2 mt-3">
                       <span className="material-symbols-outlined text-sm text-neutral-600">grade</span>
-                      <span className="text-xs text-neutral-400">{item.modulo?.creditos_materia ?? '?'} créditos</span>
+                      <span className="text-xs text-neutral-400">{item.modulo?.creditos_materia ?? '5'} créditos</span>
                     </div>
                   </div>
                 ))}
@@ -237,170 +212,65 @@ export default function StudentDashboard() {
           )}
 
           {activeTab === 'horario' && (
-            <div className="space-y-6">
-              {/* Generate button */}
-              {/* Top Compact Section */}
-              <div className="flex items-center justify-between bg-neutral-900/40 rounded-2xl border border-neutral-800 p-4 mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-                    <span className="material-symbols-outlined text-rose-400">auto_awesome</span>
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-white">Sugerencia de Horario</h2>
-                    <p className="text-[10px] text-neutral-500">Módulos equilibrados (2 materias por módulo). Max. {CREDIT_LIMIT} cr.</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  {horarioFeedback && (
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20`}>
-                      {horarioFeedback}
-                    </span>
-                  )}
-                  <button
-                    onClick={handleGenerarSugerencia}
-                    disabled={generando}
-                    className="px-6 py-2 rounded-xl font-bold text-white text-xs bg-gradient-to-r from-rose-600 to-orange-500 hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-rose-900/20"
-                  >
-                    {generando ? '...' : 'Generar horario'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Schedule display */}
+            <div className="space-y-8">
+              {/* Confirmed Schedule */}
               {horario && (
-                <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Horario Confirmado</h3>
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        {horario.estado}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {(horario.detalles || []).map((det, idx) => {
-                      const colorClass = BLOQUE_COLORS[idx % BLOQUE_COLORS.length];
-                      return (
-                        <div key={idx} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4 hover:border-neutral-700 transition-all">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${colorClass} flex items-center justify-center flex-shrink-0`}>
-                              <span className="text-white font-black text-xs">{det.bloque?.nombre}</span>
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-bold text-neutral-400">Bloque {det.bloque?.nombre}</p>
-                              <p className="text-[10px] text-neutral-500">{det.bloque?.hora_inicio?.substring(0,5)} – {det.bloque?.hora_fin?.substring(0,5)}</p>
-                            </div>
-                          </div>
-
-                          <h4 className="text-white font-bold text-sm mb-2">{det.materia?.nombre}</h4>
-
-                          <div className="space-y-1 text-xs text-neutral-400">
-                            <div className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-xs text-neutral-600">person</span>
-                              <span>{det.docente?.nombre} {det.docente?.apellido}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-xs text-neutral-600">room</span>
-                              <span>{det.aula?.nombre || 'Aula por asignar'}</span>
-                            </div>
-                            {det.modulo_info && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-xs text-neutral-600">calendar_today</span>
-                                <span>{det.modulo_info.nombre}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {(horario.detalles || []).length === 0 && (
-                      <div className="col-span-3 text-center py-8 text-neutral-500">
-                        El horario fue generado pero no tiene materias con bloque asignado aún.
+                <div className="bg-neutral-900/30 rounded-[24px] border border-emerald-500/30 p-6">
+                   <h3 className="text-lg font-bold text-white mb-6">Tu Horario Confirmado</h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {(horario.detalles || []).map((det, idx) => (
+                      <div key={idx} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4">
+                        <div className="text-xs font-bold text-rose-400 mb-1">Bloque {det.bloque?.nombre}</div>
+                        <h4 className="text-white font-bold text-sm mb-2">{det.materia?.nombre}</h4>
+                        <div className="text-[10px] text-neutral-500">{det.docente?.nombre}</div>
                       </div>
-                    )}
-                  </div>
+                    ))}
+                   </div>
                 </div>
               )}
 
-              <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
-                <h3 className="text-lg font-bold text-white mb-4">Horario Sugerido</h3>
-
-                {cargandoSugerencias && (
-                  <p className="text-sm text-neutral-400">Cargando sugerencias...</p>
-                )}
-
-                {!cargandoSugerencias && sugerenciasError && (
-                  <p className="text-sm text-red-400">{sugerenciasError}</p>
-                )}
-
-                {!cargandoSugerencias && !sugerenciasError && sugerencias.length === 0 && (
-                  <p className="text-sm text-neutral-500">No hay sugerencias disponibles con tus materias habilitadas.</p>
-                )}
-
-                <div className="space-y-4">
-                  {sugerencias.map((s, idx) => (
-                    <div key={`sug-${idx}`} className="rounded-xl border border-neutral-800 bg-[#131313] p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-bold text-neutral-100">Modulo {s.modulo?.numero_en_semestre || idx + 1}</p>
-                        <p className="text-xs text-neutral-400">{s.suggested_count || 0} de 2 materias</p>
+              {/* 3 Options Section */}
+              {opciones.length > 0 && (
+                <div className="grid grid-cols-1 gap-8">
+                  {opciones.map((opc) => (
+                    <div key={opc.id_opcion} className="bg-neutral-950 border border-neutral-800 rounded-3xl p-6 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-6">
+                        <button 
+                          onClick={() => handleConfirmarOpcion(opc)}
+                          className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-900/20"
+                        >
+                          Elegir {opc.label}
+                        </button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                        {(s.items || []).map((it) => (
-                          <div key={`sug-${idx}-${it.id_dm}`} className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-                            <div className="text-sm font-semibold text-white">{it.materia?.nombre}</div>
-                            <div className="text-xs text-neutral-400 mt-1">{it.docente?.nombre}</div>
-                            <div className="text-xs text-cyan-300 mt-1">
-                              Bloque {it.bloque?.nombre} ({String(it.bloque?.hora_inicio || '').slice(0, 5)} - {String(it.bloque?.hora_fin || '').slice(0, 5)})
+                      <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-sm">{opc.id_opcion}</span>
+                        {opc.label}
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {opc.items.map((item, i) => (
+                          <div key={i} className="bg-neutral-900/50 rounded-2xl p-4 border border-neutral-800/50">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{item.modulo_nombre}</span>
+                              {item.fijo && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 rounded">Fijado</span>}
                             </div>
-                            <div className="text-xs text-neutral-500 mt-1">{it.aula?.nombre || 'Sin aula'}</div>
+                            <h4 className="text-sm font-bold text-white mb-1">{item.materia_nombre}</h4>
+                            <p className="text-[10px] text-neutral-400 mb-3">{item.docente_nombre}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-cyan-400 font-bold bg-cyan-500/5 p-2 rounded-lg border border-cyan-500/10">
+                              <span className="material-symbols-outlined text-xs">schedule</span>
+                              Bloque {item.bloque_nombre} ({item.bloque_hora})
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
       </main>
-      {showProfile && (
-        <ProfileModal onClose={() => setShowProfile(false)} />
-      )}
-
-      {showMallaCursada && (
-        <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm p-6">
-          <div className="w-full max-w-4xl mx-auto rounded-2xl border border-neutral-800 bg-[#101010] flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between p-4 border-b border-neutral-800">
-              <div>
-                <h3 className="text-white text-lg font-bold">Malla Curricular Cursada</h3>
-                <p className="text-xs text-neutral-400">{mallaCursada.length} materias cursadas</p>
-              </div>
-              <button onClick={() => setShowMallaCursada(false)} className="px-3 py-1.5 rounded-md bg-rose-500/20 border border-rose-500/50 text-rose-200 text-sm">Cerrar</button>
-            </div>
-            <div className="p-4 overflow-y-auto">
-              {mallaCursada.length === 0 ? (
-                <div className="text-sm text-neutral-400">No hay materias cursadas registradas para este estudiante.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {mallaCursada.map((m) => (
-                    <div key={m.id_materia} className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-                      <div className="text-sm font-semibold text-neutral-100">{m.nombre}</div>
-                      <div className="text-xs text-neutral-400 mt-1">Año {m.anio_academico || '-'} · Semestre {m.semestre_academico || '-'}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
-
-

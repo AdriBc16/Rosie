@@ -47,6 +47,7 @@ Route::middleware(['auth.portal', 'portal.role:estudiante'])->group(function ():
     Route::prefix('/portal/api/estudiante')->group(function (): void {
         Route::get('/horario/sugerencias', [EstudianteController::class, 'suggestSchedules'])->name('portal.api.student.schedule.suggestions');
         Route::post('/horario/generar', [EstudianteController::class, 'generateSchedule'])->name('portal.api.student.generate_schedule');
+        Route::post('/horario/confirmar', [EstudianteController::class, 'confirmSchedule'])->name('portal.api.student.schedule.confirm');
     });
 });
 
