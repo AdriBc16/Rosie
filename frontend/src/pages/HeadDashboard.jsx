@@ -755,7 +755,7 @@ export default function HeadDashboard() {
               <>
                 <div>
                   <h2 className="text-white text-3xl font-bold">Agenda por Carrera</h2>
-                  <p className="text-neutral-500">Conectada al backend: Inscripción → Semestre → Módulo</p>
+                  <p className="text-neutral-500">Inscripción → Semestre → Módulo</p>
                   <button
                     onClick={() => openGraphModal('full')}
                     className="mt-3 px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-800 text-sm font-semibold hover:border-rose-500/50"

@@ -49,6 +49,9 @@ return [
 
     'expiration' => null,
 
+    'access_token_expiration' => env('ACCESS_TOKEN_EXPIRATION', 5),
+    'refresh_token_expiration' => env('REFRESH_TOKEN_EXPIRATION', 10080),
+    
     /*
     |--------------------------------------------------------------------------
     | Token Prefix

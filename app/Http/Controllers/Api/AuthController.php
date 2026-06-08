@@ -19,6 +19,9 @@ class AuthController extends Controller
     private const ACCESS_TOKEN_TTL_MINUTES = 60;
     private const REFRESH_TOKEN_TTL_DAYS = 30;
 
+    /**
+     * @unauthenticated
+     */
     public function login(AuthLoginRequest $request): JsonResponse
     {
         $data = $request->validated();
