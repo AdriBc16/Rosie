@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Estudiante;
 use App\Models\Inscripcion;
 use App\Models\Materia;
 use App\Models\Modulo;
@@ -100,7 +101,29 @@ class InscripcionController extends Controller
             return response()->json(['message' => $errorDetail], 422);
         }
 
-        // 3. Verificar si ya está inscrito específicamente en ese módulo (redundante pero seguro)
+        // 3. Verificar límite de 29 créditos por semestre
+        $moduloSeleccionado = Modulo::find($selectedModuloId);
+        $idSemestre = $moduloSeleccionado->id_semestre;
+        $materiaNew = Materia::find($idMateria);
+        $creditosNueva = $materiaNew->creditos ?? 3;
+
+        $creditosActuales = Inscripcion::query()
+            ->join('modulos', 'inscripciones.id_modulo', '=', 'modulos.id_modulo')
+            ->join('materias', 'inscripciones.id_materia', '=', 'materias.id_materia')
+            ->where('inscripciones.id_estudiante', $idEstudiante)
+            ->where('modulos.id_semestre', $idSemestre)
+            ->whereIn('inscripciones.estado', ['cursando', 'pendiente', 'bloqueada'])
+            ->sum('materias.creditos');
+
+        if (($creditosActuales + $creditosNueva) > 29) {
+            $estudiante = Estudiante::find($idEstudiante);
+            $nombreAlumno = trim("{$estudiante->nombre} {$estudiante->apellido}");
+            return response()->json([
+                'message' => "el alumno {$nombreAlumno} no puede cursar la materia {$materiaNew->nombre} porque excede los créditos, máx. 29"
+            ], 422);
+        }
+
+        // 4. Verificar si ya está inscrito específicamente en ese módulo (redundante pero seguro)
         $exists = Inscripcion::where('id_estudiante', $idEstudiante)
             ->where('id_materia', $idMateria)
             ->where('id_modulo', $selectedModuloId)

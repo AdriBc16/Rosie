@@ -32,6 +32,7 @@ export default function HeadDashboard() {
     historialMaterias: [],
     inscripciones: [],
     activeModuloId: null,
+    disponibilidadDocente: [],
   });
 
   const [loading, setLoading] = useState(true);
@@ -187,6 +188,116 @@ export default function HeadDashboard() {
 
     return byStudent;
   }, [catalog.inscripciones, catalog.estudiantes]);
+
+  // Bloques disponibles para el docente+módulo seleccionado en el formulario de asignación
+  const bloquesDisponiblesParaAsignar = useMemo(() => {
+    if (!form.id_docente || !form.id_modulo) return catalog.bloques || [];
+    const idDoc = Number(form.id_docente);
+    const idMod = Number(form.id_modulo);
+    const disponibles = new Set(
+      (catalog.disponibilidadDocente || [])
+        .filter((d) => d.id_docente === idDoc && d.id_modulo === idMod)
+        .map((d) => d.id_bloque),
+    );
+    return (catalog.bloques || []).filter((b) => disponibles.has(b.id_bloque));
+  }, [form.id_docente, form.id_modulo, catalog.bloques, catalog.disponibilidadDocente]);
+
+  const bloquesLibresParaDocente = useMemo(() => {
+    if (!form.id_docente || !form.id_modulo) return [];
+
+    const docenteId = Number(form.id_docente);
+    const moduloId = Number(form.id_modulo);
+
+    const bloquesDisponibles = new Set(
+      (catalog.disponibilidadDocente || [])
+        .filter(
+          d =>
+            d.id_docente === docenteId &&
+            d.id_modulo === moduloId
+        )
+        .map(d => d.id_bloque)
+    );
+
+    const bloquesOcupados = new Set(
+      (catalog.asignacionesActuales || [])
+        .filter(
+          a =>
+            a.id_docente === docenteId &&
+            a.id_modulo === moduloId
+        )
+        .map(a => a.id_bloque)
+    );
+
+    return (catalog.bloques || []).filter(
+      b =>
+        bloquesDisponibles.has(b.id_bloque) &&
+        !bloquesOcupados.has(b.id_bloque)
+    );
+  }, [
+    form.id_docente,
+    form.id_modulo,
+    catalog.disponibilidadDocente,
+    catalog.asignacionesActuales,
+    catalog.bloques,
+  ]);
+
+  const aulasDisponibles = useMemo(() => {
+    if (!form.id_modulo || !form.id_bloque)
+      return catalog.aulas || [];
+
+    const moduloId = Number(form.id_modulo);
+    const bloqueId = Number(form.id_bloque);
+
+    const aulasOcupadas = new Set(
+      (catalog.asignacionesActuales || [])
+        .filter(
+          a =>
+            a.id_modulo === moduloId &&
+            a.id_bloque === bloqueId
+        )
+        .map(a => a.id_aula)
+    );
+
+    return (catalog.aulas || []).filter(
+      aula => !aulasOcupadas.has(aula.id_aula)
+    );
+  }, [
+    form.id_modulo,
+    form.id_bloque,
+    catalog.aulas,
+    catalog.asignacionesActuales,
+  ]);
+  // Materias que tienen al menos un docente asignado
+  const materiasConDocente = useMemo(() => {
+    const ids = new Set((catalog.asignacionesActuales || []).map((a) => a.id_materia));
+    return (catalog.materias || []).filter((m) => ids.has(m.id_materia));
+  }, [catalog.materias, catalog.asignacionesActuales]);
+
+  // Materias disponibles para inscribir al alumno seleccionado (con docente y sin inscripción activa)
+  const materiasParaInscribir = useMemo(() => {
+    if (!form.id_estudiante || String(form.id_estudiante).startsWith('cohort-')) return materiasConDocente;
+    const idEst = Number(form.id_estudiante);
+    const yaInscritas = new Set(
+      (catalog.inscripciones || [])
+        .filter((i) => i.id_estudiante === idEst && i.estado !== 'reprobada')
+        .map((i) => i.id_materia),
+    );
+    return materiasConDocente.filter((m) => !yaInscritas.has(m.id_materia));
+  }, [materiasConDocente, form.id_estudiante, catalog.inscripciones]);
+
+  // Estudiantes agrupados por semestre académico actual (estimado por cohorte)
+  const estudiantesPorSemestre = useMemo(() => {
+    const map = new Map();
+    (catalog.estudiantes || []).forEach((e) => {
+      const cohort = e.cohorte_ingreso;
+      if (!cohort) return;
+      const nivelActual = Math.max(1, Math.min(5, (new Date().getFullYear() - cohort) + 1));
+      const semActual = Math.max(1, Math.min(10, (nivelActual - 1) * 2 + 1));
+      if (!map.has(semActual)) map.set(semActual, []);
+      map.get(semActual).push(e);
+    });
+    return new Map([...map.entries()].sort((a, b) => a[0] - b[0]));
+  }, [catalog.estudiantes]);
 
   const studentByYear = useMemo(() => {
     const map = new Map();
@@ -628,9 +739,8 @@ export default function HeadDashboard() {
   }, [catalog.materias, catalog.prerrequisitos, maxSemestre]);
 
   const handleAssign = async () => {
-    // La asignación ahora es base: Docente + Materia + Aula. El algoritmo decidirá Módulo y Bloque.
-    if (!form.id_materia || !form.id_docente || !form.id_aula) {
-      setFeedback('Selecciona materia, docente y aula para vincular.');
+    if (!form.id_materia || !form.id_docente || !form.id_aula || !form.id_modulo || !form.id_bloque) {
+      setFeedback('Selecciona materia, docente, aula, módulo y horario para vincular.');
       return;
     }
 
@@ -639,7 +749,8 @@ export default function HeadDashboard() {
         id_materia: Number(form.id_materia),
         id_docente: Number(form.id_docente),
         id_aula: Number(form.id_aula),
-        enrollment_mode: form.enrollment_mode || 'none',
+        id_modulo: Number(form.id_modulo),
+        id_bloque: Number(form.id_bloque),
       };
       const res = await axios.post('/portal/api/jefe/asignaciones', payload);
       setFeedback(res.data?.message || 'Asignación creada');
@@ -651,17 +762,41 @@ export default function HeadDashboard() {
   };
 
   const handleEnroll = async () => {
-    if (!form.id_materia || !form.id_estudiante || !form.id_modulo) {
-      setFeedback('Selecciona materia, alumno y módulo para inscribir.');
+    if (!form.id_materia || !form.id_estudiante) {
+      setFeedback('Selecciona materia y alumno para inscribir.');
       return;
     }
+
+    const buildPayload = (idEstudiante) => ({
+      id_materia: Number(form.id_materia),
+      id_estudiante: idEstudiante,
+      ...(form.id_modulo ? { id_modulo: Number(form.id_modulo) } : {}),
+    });
+
+    // Inscripción masiva por semestre
+    if (String(form.id_estudiante).startsWith('cohort-')) {
+      const semNum = Number(String(form.id_estudiante).replace('cohort-', ''));
+      const students = estudiantesPorSemestre.get(semNum) || [];
+      if (students.length === 0) { setFeedback('No hay alumnos en ese semestre.'); return; }
+      let ok = 0; const errors = [];
+      for (const st of students) {
+        try {
+          await axios.post('/portal/api/jefe/inscripciones', buildPayload(st.id_estudiante));
+          ok++;
+        } catch (err) {
+          errors.push(`${st.nombre}: ${err.response?.data?.message || 'error'}`);
+        }
+      }
+      setFeedback(errors.length === 0
+        ? `${ok} alumnos inscritos correctamente.`
+        : `${ok} inscritos. Errores: ${errors.join(' | ')}`);
+      await loadCatalog();
+      return;
+    }
+
+    // Inscripción individual
     try {
-      const payload = {
-        id_materia: Number(form.id_materia),
-        id_estudiante: Number(form.id_estudiante),
-        id_modulo: Number(form.id_modulo),
-      };
-      const res = await axios.post('/portal/api/jefe/inscripciones', payload);
+      const res = await axios.post('/portal/api/jefe/inscripciones', buildPayload(Number(form.id_estudiante)));
       setFeedback(res.data?.message || 'Inscripción realizada con éxito');
       await loadCatalog();
     } catch (err) {
@@ -845,36 +980,43 @@ export default function HeadDashboard() {
             {activeTab === 'assign' && (
               <div id="assign-section" className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
                 <h3 className="text-xl font-bold mb-4">Vincular Docente y Aula</h3>
-                <p className="text-xs text-neutral-500 mb-6">El sistema asignará el módulo y horario más efectivo basándose en la disponibilidad del docente.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <p className="text-xs text-neutral-500 mb-6">Selecciona módulo y horario específicos. Solo aparecen horarios donde el docente tiene disponibilidad registrada.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
                     <option value="">Seleccionar Materia</option>
                     {(catalog.materias || []).map((m) => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
                   </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_docente} onChange={(e) => setForm((p) => ({ ...p, id_docente: e.target.value }))}>
+                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_docente} onChange={(e) => setForm((p) => ({ ...p, id_docente: e.target.value, id_bloque: '' }))}>
                     <option value="">Seleccionar Docente</option>
                     {(catalog.docentes || []).filter((d) => !d.es_jefe_carrera).map((d) => <option key={d.id_docente} value={d.id_docente}>{d.nombre} {d.apellido || ''}</option>)}
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_aula} onChange={(e) => setForm((p) => ({ ...p, id_aula: e.target.value }))}>
                     <option value="">Seleccionar Aula</option>
-                    {(catalog.aulas || []).map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)}
+                    {/* {(catalog.aulas || []).map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)} */}
+                    {aulasDisponibles.map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)}
                   </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.enrollment_mode} onChange={(e) => setForm((p) => ({ ...p, enrollment_mode: e.target.value }))}>
-                    <option value="none">Sin inscripción masiva</option>
-                    <option value="all">Inscribir a todos los alumnos</option>
-                    {(catalog.estudiantes || []).map((est) => <option key={`est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido} (Inscrip. Directa)</option>)}
+                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value, id_bloque: '' }))}>
+                    <option value="">Seleccionar Módulo</option>
+                    {(catalog.modulos || []).map((m) => <option key={m.id_modulo} value={m.id_modulo}>{m.nombre} ({formatDateShort(m.fecha_inicio)})</option>)}
+                  </select>
+                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_bloque} onChange={(e) => setForm((p) => ({ ...p, id_bloque: e.target.value }))}>
+                    <option value="">
+                      {form.id_docente && form.id_modulo
+                        ? bloquesDisponiblesParaAsignar.length === 0
+                          ? 'Sin disponibilidad en este módulo'
+                          : 'Seleccionar Horario'
+                        : 'Selecciona docente y módulo primero'}
+                    </option>
+                    {bloquesLibresParaDocente.map((b) => (
+                      <option key={b.id_bloque} value={b.id_bloque}>
+                        Bloque {b.nombre} — {b.hora_inicio?.slice(0, 5)} a {b.hora_fin?.slice(0, 5)}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                {selectedCell && (
-                  <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-[#2d2d2d] text-white font-bold rounded-xl">
-                    Vincular (desde Agenda)
-                  </button>
-                )}
-                {!selectedCell && (
-                  <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-500">
-                    Vincular Docente
-                  </button>
-                )}
+                <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-500">
+                  Vincular Docente
+                </button>
               </div>
             )}
 
@@ -888,11 +1030,16 @@ export default function HeadDashboard() {
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
                     <option value="">Seleccionar Materia</option>
-                    {(catalog.materias || []).map((m) => <option key={`enroll-mat-${m.id_materia}`} value={m.id_materia}>{m.nombre}</option>)}
+                    {materiasParaInscribir.map((m) => <option key={`enroll-mat-${m.id_materia}`} value={m.id_materia}>{m.nombre}</option>)}
                   </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_estudiante} onChange={(e) => setForm((p) => ({ ...p, id_estudiante: e.target.value }))}>
+                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_estudiante} onChange={(e) => setForm((p) => ({ ...p, id_estudiante: e.target.value, id_materia: '' }))}>
                     <option value="">Seleccionar Estudiante</option>
-                    {(catalog.estudiantes || []).map((est) => <option key={`enroll-est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido}</option>)}
+                    {Array.from(estudiantesPorSemestre.entries()).map(([sem, students]) => (
+                      <optgroup key={`sem-${sem}`} label={`Semestre ${sem}`}>
+                        <option value={`cohort-${sem}`}>— Todos los alumnos Semestre {sem} ({students.length})</option>
+                        {students.map((est) => <option key={`enroll-est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
                 <button onClick={handleEnroll} className="mt-4 px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-500">

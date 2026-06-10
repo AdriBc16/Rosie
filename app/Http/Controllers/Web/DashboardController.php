@@ -60,6 +60,9 @@ class DashboardController extends Controller
 
         $asignacionesActuales = DocenteMateria::query()->get();
 
+        $disponibilidadDocente = DisponibilidadDocente::query()
+            ->get(['id_docente', 'id_bloque', 'id_modulo']);
+
         return response()->json([
             'data' => [
                 'docentes' => $teachers,
@@ -74,6 +77,7 @@ class DashboardController extends Controller
                 'inscripciones' => $inscripciones,
                 'activeModuloId' => $activeModuloId,
                 'asignacionesActuales' => $asignacionesActuales,
+                'disponibilidadDocente' => $disponibilidadDocente,
             ],
         ]);
     }

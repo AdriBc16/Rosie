@@ -58,7 +58,6 @@ class DatabaseSeeder extends Seeder
                     'id_semestre' => $semestre->id_semestre,
                     'fecha_inicio' => $mStart->toDateString(),
                     'fecha_final' => $mEnd->toDateString(),
-                    'creditos' => 3,
                 ]);
                 $modulosBySemNum["{$sem}-{$mod}"] = $modulo;
             }
@@ -87,6 +86,7 @@ class DatabaseSeeder extends Seeder
             foreach ($lista as $pos => $nombre) {
                 $materia = Materia::create([
                     'nombre' => $nombre,
+                    'creditos' => 3,
                     'horas_semanales' => 4,
                     'anio_academico' => $anio,
                     'semestre_academico' => $sem,
@@ -170,9 +170,17 @@ class DatabaseSeeder extends Seeder
         $doc2 = Docente::create(['nombre' => 'Pedro', 'apellido' => 'Gutierrez', 'es_jefe_carrera' => false, 'correo' => 'docente2@goodorder.test', 'password' => Hash::make('UPB123')]);
         $doc3 = Docente::create(['nombre' => 'Maria', 'apellido' => 'Flores', 'es_jefe_carrera' => false, 'correo' => 'docente3@goodorder.test', 'password' => Hash::make('UPB123')]);
 
+        // Disponibilidad por módulo: cada docente tiene disponibilidad en todos los módulos
+        $todosMod = collect($modulosBySemNum)->values();
         foreach ([[$doc1, 'A'], [$doc1, 'B'], [$doc2, 'C'], [$doc2, 'D'], [$doc3, 'E'], [$doc3, 'F']] as [$doc, $bloqueNombre]) {
             $bloque = $bloques->firstWhere('nombre', $bloqueNombre);
-            \App\Models\DisponibilidadDocente::create(['id_docente' => $doc->id_docente, 'id_bloque' => $bloque->id_bloque]);
+            foreach ($todosMod as $modulo) {
+                \App\Models\DisponibilidadDocente::create([
+                    'id_docente' => $doc->id_docente,
+                    'id_bloque'  => $bloque->id_bloque,
+                    'id_modulo'  => $modulo->id_modulo,
+                ]);
+            }
         }
 
         // Asignaciones demo
@@ -323,7 +331,14 @@ class DatabaseSeeder extends Seeder
 
     private function resetAcademicData(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        $driver = DB::getDriverName();
+
+        if ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = OFF');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        }
+
         DB::table('detalle_horarios')->truncate();
         DB::table('horarios_generados')->truncate();
         DB::table('inscripciones')->truncate();
@@ -339,6 +354,11 @@ class DatabaseSeeder extends Seeder
         DB::table('semestres')->truncate();
         DB::table('aulas')->truncate();
         DB::table('bloques_horarios')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+        if ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = ON');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
     }
 }

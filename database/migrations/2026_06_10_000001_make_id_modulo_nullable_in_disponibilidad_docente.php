@@ -6,30 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('docente_materias', function (Blueprint $table) {
+        Schema::table('disponibilidad_docente', function (Blueprint $table) {
             $table->dropForeign(['id_modulo']);
-            $table->dropForeign(['id_bloque']);
             $table->integer('id_modulo')->nullable()->change();
-            $table->integer('id_bloque')->nullable()->change();
             $table->foreign('id_modulo')->references('id_modulo')->on('modulos')->onDelete('cascade');
-            $table->foreign('id_bloque')->references('id_bloque')->on('bloques_horarios')->onDelete('set null');
         });
     }
 
     public function down(): void
     {
-        Schema::table('docente_materias', function (Blueprint $table) {
+        Schema::table('disponibilidad_docente', function (Blueprint $table) {
             $table->dropForeign(['id_modulo']);
-            $table->dropForeign(['id_bloque']);
             $table->integer('id_modulo')->nullable(false)->change();
-            $table->integer('id_bloque')->nullable(false)->change();
             $table->foreign('id_modulo')->references('id_modulo')->on('modulos')->onDelete('cascade');
-            $table->foreign('id_bloque')->references('id_bloque')->on('bloques_horarios')->onDelete('set null');
         });
     }
 };

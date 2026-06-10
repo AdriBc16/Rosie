@@ -14,17 +14,6 @@ return new class extends Migration
             $table->index('cohorte_ingreso', 'estudiantes_cohorte_ingreso_idx');
         });
 
-        // Backfill desde la primera fecha de inscripción disponible por estudiante.
-        DB::statement("
-            UPDATE estudiantes e
-            LEFT JOIN (
-                SELECT id_estudiante, MIN(YEAR(fecha_inscripcion)) AS cohorte
-                FROM inscripciones
-                GROUP BY id_estudiante
-            ) i ON i.id_estudiante = e.id_estudiante
-            SET e.cohorte_ingreso = i.cohorte
-            WHERE e.cohorte_ingreso IS NULL
-        ");
     }
 
     public function down(): void

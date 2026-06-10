@@ -12,17 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('inscripciones', function (Blueprint $table) {
-            $table->unsignedBigInteger('id_modulo')->nullable()->change();
+            $table->dropForeign(['id_modulo']);
+            $table->integer('id_modulo')->nullable()->change();
+            $table->foreign('id_modulo')->references('id_modulo')->on('modulos')->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('inscripciones', function (Blueprint $table) {
-            $table->unsignedBigInteger('id_modulo')->nullable(false)->change();
+            $table->dropForeign(['id_modulo']);
+            $table->integer('id_modulo')->nullable(false)->change();
+            $table->foreign('id_modulo')->references('id_modulo')->on('modulos')->onDelete('cascade');
         });
     }
 };
