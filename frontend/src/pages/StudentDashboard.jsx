@@ -14,7 +14,7 @@ const ESTADO_STYLES = {
   incompleta:'bg-orange-500/20 text-orange-300 border-orange-500/30',
 };
 
-const BLOQUE_COLORS = ['from-rose-500 to-pink-400','from-orange-500 to-amber-400','from-yellow-500 to-lime-400','from-teal-500 to-cyan-400','from-blue-500 to-violet-400','from-purple-500 to-fuchsia-400'];
+const BLOQUE_COLORS = ['from-indigo-600 to-violet-500', 'from-sky-600 to-cyan-500', 'from-emerald-600 to-teal-500', 'from-cyan-600 to-blue-500', 'from-blue-600 to-indigo-500', 'from-violet-600 to-fuchsia-500'];
 
 const CREDIT_LIMIT = 29;
 
@@ -44,6 +44,7 @@ export default function StudentDashboard() {
     try {
       await cargarOpciones();
       setHorarioFeedback('Sugerencias de horario generadas.');
+      setActiveTab('horario');
     } catch (err) {
       setHorarioFeedback('Error al generar opciones.');
     } finally {
@@ -108,16 +109,16 @@ export default function StudentDashboard() {
         <nav className="flex-1 flex flex-col gap-2">
           <button
             onClick={() => setActiveTab('materias')}
-            className={`flex items-center gap-3 rounded-xl py-3 px-4 text-left transition-all ${activeTab === 'materias' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'}`}
+            className={`flex items-center gap-3 rounded-xl py-3 px-4 text-left transition-all ${activeTab === 'materias' ? 'bg-indigo-500/10 text-indigo-300 border-l-4 border-indigo-500' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'}`}
           >
-            <span className="material-symbols-outlined text-rose-400">menu_book</span>
+            <span className={`material-symbols-outlined ${activeTab === 'materias' ? 'text-indigo-400' : 'text-neutral-400'}`}>menu_book</span>
             <span className="font-semibold text-sm">Mis Materias</span>
           </button>
           <button
             onClick={() => setActiveTab('horario')}
-            className={`flex items-center gap-3 rounded-xl py-3 px-4 text-left transition-all ${activeTab === 'horario' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'}`}
+            className={`flex items-center gap-3 rounded-xl py-3 px-4 text-left transition-all ${activeTab === 'horario' ? 'bg-indigo-500/10 text-indigo-300 border-l-4 border-indigo-500' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'}`}
           >
-            <span className="material-symbols-outlined text-neutral-400">calendar_month</span>
+            <span className={`material-symbols-outlined ${activeTab === 'horario' ? 'text-indigo-400' : 'text-neutral-400'}`}>calendar_month</span>
             <span className="font-semibold text-sm">Mi Horario</span>
           </button>
         </nav>
@@ -221,8 +222,104 @@ export default function StudentDashboard() {
 
           {activeTab === 'horario' && (
             <div className="space-y-8">
-              {/* Confirmed Schedule */}
-              {horario && (
+
+              {/* Error banner */}
+              {opcionesError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center gap-3">
+                  <span className="material-symbols-outlined text-red-400">error</span>
+                  <p className="text-sm text-red-400 font-semibold">{opcionesError}</p>
+                </div>
+              )}
+
+              {/* 3 Options Section — shown prominently when options are generated */}
+              {opciones.length > 0 && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-rose-400">auto_awesome</span>
+                    <h2 className="text-xl font-bold text-white">Elige una opcion de horario</h2>
+                    <button
+                      onClick={() => setOpciones([])}
+                      className="ml-auto text-[10px] text-neutral-500 hover:text-neutral-300 underline transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-6">
+                    {opciones.map((opc) => (
+                      <div key={opc.id_opcion} className="bg-neutral-950 border border-rose-500/20 rounded-3xl p-6 relative overflow-hidden group hover:border-rose-500/40 transition-all">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                            <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center text-sm font-black">{opc.id_opcion}</span>
+                            {opc.label}
+                          </h3>
+                          <button
+                            onClick={() => handleConfirmarOpcion(opc)}
+                            disabled={confirmando}
+                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:brightness-110 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-900/30"
+                          >
+                            {confirmando ? 'Confirmando...' : `Elegir ${opc.label}`}
+                          </button>
+                        </div>
+                        {['Modulo 1', 'Modulo 2', 'Modulo 3'].map((modNombre) => {
+                          const modItems = opc.items.filter(it => it.modulo_nombre === modNombre);
+                          if (modItems.length === 0) return null;
+                          return (
+                            <div key={modNombre} className="mb-5">
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">{modNombre}</span>
+                                <div className="h-px flex-1 bg-neutral-800" />
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {modItems.map((item, i) => (
+                                  <div key={i} className="bg-neutral-900/60 rounded-2xl p-4 border border-neutral-800/50 hover:border-neutral-700 transition-all">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[10px] font-bold text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Bloque {item.bloque_nombre || '?'}</span>
+                                      {item.fijo && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 rounded">Fijado</span>}
+                                    </div>
+                                    <h4 className="text-sm font-bold text-white mb-1">{item.materia_nombre}</h4>
+                                    <p className="text-[10px] text-neutral-400 mb-3">{item.docente_nombre}</p>
+                                    <div className="flex items-center gap-2 text-[10px] text-cyan-400 font-bold bg-cyan-500/5 p-2 rounded-lg border border-cyan-500/10">
+                                      <span className="material-symbols-outlined text-xs">schedule</span>
+                                      {item.bloque_hora || '??:?? - ??:??'}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {opc.items.filter(it => !['Modulo 1','Modulo 2','Modulo 3'].includes(it.modulo_nombre)).length > 0 && (
+                          <div className="mb-5">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Otras Materias</span>
+                              <div className="h-px flex-1 bg-neutral-800" />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {opc.items.filter(it => !['Modulo 1','Modulo 2','Modulo 3'].includes(it.modulo_nombre)).map((item, i) => (
+                                <div key={i} className="bg-neutral-900/60 rounded-2xl p-4 border border-neutral-800/50">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Bloque {item.bloque_nombre || '?'}</span>
+                                    {item.fijo && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 rounded">Fijado</span>}
+                                  </div>
+                                  <h4 className="text-sm font-bold text-white mb-1">{item.materia_nombre}</h4>
+                                  <p className="text-[10px] text-neutral-400 mb-3">{item.docente_nombre}</p>
+                                  <div className="flex items-center gap-2 text-[10px] text-cyan-400 font-bold bg-cyan-500/5 p-2 rounded-lg border border-cyan-500/10">
+                                    <span className="material-symbols-outlined text-xs">schedule</span>
+                                    {item.bloque_hora || '??:?? - ??:??'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Confirmed Schedule - only shown when no options are being selected */}
+              {horario && opciones.length === 0 && (
                 <div className="bg-neutral-900/30 rounded-[24px] border border-emerald-500/30 p-6">
                   <div className="flex items-center gap-3 mb-8">
                     <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -284,44 +381,15 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {/* 3 Options Section */}
-              {opciones.length > 0 && (
-                <div className="grid grid-cols-1 gap-8">
-                  {opciones.map((opc) => (
-                    <div key={opc.id_opcion} className="bg-neutral-950 border border-neutral-800 rounded-3xl p-6 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-6">
-                        <button 
-                          onClick={() => handleConfirmarOpcion(opc)}
-                          className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-900/20"
-                        >
-                          Elegir {opc.label}
-                        </button>
-                      </div>
-                      <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-sm">{opc.id_opcion}</span>
-                        {opc.label}
-                      </h3>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {opc.items.map((item, i) => (
-                          <div key={i} className="bg-neutral-900/50 rounded-2xl p-4 border border-neutral-800/50">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{item.modulo_nombre}</span>
-                              {item.fijo && <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 rounded">Fijado</span>}
-                            </div>
-                            <h4 className="text-sm font-bold text-white mb-1">{item.materia_nombre}</h4>
-                            <p className="text-[10px] text-neutral-400 mb-3">{item.docente_nombre}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-cyan-400 font-bold bg-cyan-500/5 p-2 rounded-lg border border-cyan-500/10">
-                              <span className="material-symbols-outlined text-xs">schedule</span>
-                              Bloque {item.bloque_nombre} ({item.bloque_hora})
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              {/* Empty state when no schedule and no options */}
+              {!horario && opciones.length === 0 && !opcionesError && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <span className="material-symbols-outlined text-5xl text-neutral-700 mb-4">calendar_month</span>
+                  <p className="text-neutral-500 text-sm">Aun no tienes un horario asignado.</p>
+                  <p className="text-neutral-600 text-xs mt-1">Usa el boton <strong className="text-neutral-400">"Generar 3 opciones"</strong> para ver combinaciones posibles.</p>
                 </div>
               )}
+
             </div>
           )}
         </div>

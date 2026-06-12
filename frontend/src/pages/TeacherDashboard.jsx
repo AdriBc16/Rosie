@@ -6,12 +6,12 @@ import ProfileModal from '../components/ProfileModal';
 import logoRosie from '../assets/Rosie1.png';
 
 const BLOQUE_COLORS = {
-  A: 'from-rose-500 to-pink-400',
-  B: 'from-orange-500 to-amber-400',
-  C: 'from-yellow-500 to-lime-400',
-  D: 'from-teal-500 to-cyan-400',
-  E: 'from-blue-500 to-violet-400',
-  F: 'from-purple-500 to-fuchsia-400',
+  A: 'from-indigo-600 to-violet-500',
+  B: 'from-sky-600 to-cyan-500',
+  C: 'from-emerald-600 to-teal-500',
+  D: 'from-cyan-600 to-blue-500',
+  E: 'from-blue-600 to-indigo-500',
+  F: 'from-violet-600 to-fuchsia-500',
 };
 
 const STATUS_STYLES = {
@@ -138,8 +138,8 @@ export default function TeacherDashboard() {
         </div>
 
         <nav className="flex-1 flex flex-col gap-2">
-          <a className="flex items-center gap-3 bg-neutral-900 text-white rounded-xl py-3 px-4 border-l-4 border-rose-500" href="#">
-            <span className="material-symbols-outlined text-rose-400">dashboard</span>
+          <a className="flex items-center gap-3 bg-indigo-500/10 text-indigo-300 rounded-xl py-3 px-4 border-l-4 border-indigo-500" href="#">
+            <span className="material-symbols-outlined text-indigo-400">dashboard</span>
             <span className="font-semibold text-sm">Mi Panel</span>
           </a>
         </nav>

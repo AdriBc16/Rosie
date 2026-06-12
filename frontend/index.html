@@ -10,14 +10,56 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
     <script>
       tailwind.config = {
-        darkMode: "class"
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              rose: {
+                50: '#f5f3ff',
+                100: '#e0e7ff',
+                200: '#c7d2fe',
+                300: '#a5b4fc',
+                400: '#818cf8',
+                500: '#6366f1',
+                600: '#4f46e5',
+                700: '#4338ca',
+                800: '#3730a3',
+                900: '#312e81',
+                950: '#1e1b4b',
+              },
+              pink: {
+                400: '#c084fc',
+                500: '#a855f7',
+                600: '#9333ea',
+                900: '#581c87',
+              },
+              orange: {
+                50: '#f0f9ff',
+                100: '#e0f2fe',
+                200: '#bae6fd',
+                300: '#7dd3fc',
+                400: '#38bdf8',
+                500: '#0ea5e9',
+                600: '#0284c7',
+                700: '#0369a1',
+                800: '#075985',
+                900: '#0c4a6e',
+              },
+              amber: {
+                300: '#67e8f9',
+                400: '#22d3ee',
+                500: '#06b6d4',
+              }
+            }
+          }
+        }
       };
     </script>
     <style>
       .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-      body { background-color: #000000; color: #f6dddc; font-family: Inter, sans-serif; }
+      body { background-color: #030303; color: #f1f5f9; font-family: Inter, sans-serif; }
       .font-h1, .font-h2 { font-family: 'Plus Jakarta Sans', sans-serif; }
-      .glass-panel { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #2d2d2d; }
+      .glass-panel { background: rgba(10, 10, 20, 0.65); backdrop-filter: blur(16px); border: 1px solid rgba(99, 102, 241, 0.12); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
     </style>
     <title>Rosie Portal</title>
   </head>

@@ -1,20 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    /* Color Palette - ROSIE Theme (Updated to match image) */
-    --bg-deep: #050507;
-    --bg-surface: #0a0a0c;
-    --bg-card: rgba(18, 18, 23, 0.7);
-    --primary: #ff4b82; /* Vibrant Pink from image */
-    --secondary: #ff8c69; /* Soft Orange from image */
-    --accent: #ff4b82;
-    --text-main: #ffffff;
-    --text-muted: #8e8e9c;
-    --border: rgba(255, 255, 255, 0.08);
-    --glass-border: rgba(255, 255, 255, 0.06);
+    /* Color Palette - Premium Indigo/Violet/Cyan Theme */
+    --bg-deep: #030303;
+    --bg-surface: #080810;
+    --bg-card: rgba(13, 13, 23, 0.75);
+    --primary: #6366f1; /* Indigo */
+    --secondary: #8b5cf6; /* Violet */
+    --accent: #38bdf8; /* Sky/Cyan */
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border: rgba(99, 102, 241, 0.12);
+    --glass-border: rgba(139, 92, 246, 0.08);
     
-    --grad-rosie: linear-gradient(90deg, #ff4b82 0%, #ff8c69 100%);
-    --grad-glow: radial-gradient(circle at 50% 50%, rgba(255, 75, 130, 0.1) 0%, transparent 70%);
+    --grad-rosie: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+    --grad-glow: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
 }
 
 * { box-sizing: border-box; transition: all 0.2s ease-out; }
@@ -59,7 +59,7 @@ h1, h2, h3, h4, .brand h1 {
 }
 
 .sidebar {
-    background: #0d0d0f;
+    background: #06060c;
     border-right: 1px solid var(--border);
     padding: 24px 16px;
     display: flex;
@@ -123,7 +123,7 @@ h1, h2, h3, h4, .brand h1 {
 
 .menu a.active {
     color: var(--primary);
-    background: rgba(255, 75, 130, 0.1);
+    background: rgba(99, 102, 241, 0.12);
 }
 
 /* Content Area */
@@ -150,14 +150,14 @@ h1, h2, h3, h4, .brand h1 {
 }
 
 .chip {
-    background: rgba(255, 75, 130, 0.1);
+    background: rgba(99, 102, 241, 0.1);
     color: var(--primary);
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    border: 1px solid rgba(255, 75, 130, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 /* Page Components */
@@ -188,15 +188,15 @@ h1, h2, h3, h4, .brand h1 {
 }
 
 .card:hover {
-    border-color: rgba(255, 75, 130, 0.3);
+    border-color: rgba(139, 92, 246, 0.3);
     transform: translateY(-2px);
 }
-
+ 
 .card::after {
     content: '';
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: radial-gradient(circle at top right, rgba(255, 140, 105, 0.05), transparent 40%);
+    background: radial-gradient(circle at top right, rgba(139, 92, 246, 0.05), transparent 40%);
     pointer-events: none;
 }
 
@@ -242,12 +242,12 @@ h1, h2, h3, h4, .brand h1 {
 .btn-primary {
     background: var(--grad-rosie);
     color: white;
-    box-shadow: 0 4px 15px rgba(255, 75, 130, 0.3);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
 }
-
+ 
 .btn-primary:hover {
     transform: scale(1.02);
-    box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.35);
 }
 
 .btn-primary:disabled {
@@ -285,8 +285,8 @@ h1, h2, h3, h4, .brand h1 {
 .field input:focus, .field select:focus {
     outline: none;
     border-color: var(--primary);
-    background: rgba(255, 75, 130, 0.1);
-    box-shadow: 0 0 0 4px rgba(255, 75, 130, 0.15);
+    background: rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
 }
 
 
@@ -311,7 +311,7 @@ h1, h2, h3, h4, .brand h1 {
 .subject-card strong { font-family: 'Outfit', sans-serif; font-size: 18px; color: var(--primary); }
 
 .pill {
-    background: rgba(255, 75, 130, 0.1);
+    background: rgba(99, 102, 241, 0.1);
     color: var(--secondary);
     font-size: 12px;
     font-weight: 700;

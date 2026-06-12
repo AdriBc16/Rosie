@@ -39,14 +39,26 @@ class EstudianteController extends Controller
             return response()->json(['message' => 'No tienes materias inscritas.'], 422);
         }
 
-        // 2. Obtener los 3 módulos del semestre actual
-        $modulos = Modulo::orderBy('fecha_inicio')
-            ->where('fecha_final', '>=', now()->subMonths(2)) // Ventana razonable
-            ->limit(3)
+        // 2. Obtener los 3 módulos del semestre más reciente
+        // Primero buscar el semestre activo o el más reciente
+        $semestre = \App\Models\Semestre::where('fecha_inicio', '<=', now())
+            ->orderBy('fecha_inicio', 'desc')
+            ->first();
+
+        if (!$semestre) {
+            $semestre = \App\Models\Semestre::orderBy('fecha_inicio', 'desc')->first();
+        }
+
+        if (!$semestre) {
+            return response()->json(['message' => 'No hay semestres configurados.'], 422);
+        }
+
+        $modulos = Modulo::where('id_semestre', $semestre->id_semestre)
+            ->orderBy('fecha_inicio')
             ->get();
 
-        if ($modulos->count() < 3) {
-            return response()->json(['message' => 'No se encontraron suficientes módulos configurados.'], 422);
+        if ($modulos->count() < 1) {
+            return response()->json(['message' => 'No se encontraron módulos configurados para el semestre activo.'], 422);
         }
 
         // 3. Generar 3 opciones diferentes
