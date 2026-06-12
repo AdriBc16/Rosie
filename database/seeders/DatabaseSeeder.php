@@ -65,7 +65,7 @@ class DatabaseSeeder extends Seeder
 
         // Regla: 2 materias por modulo -> 6 por semestre
         $materiasPorSemestre = [
-            1 => ['Algebra Lineal', 'Matematicas para Ingenieria I', 'Programacion I', 'Introduccion a la ETDT', 'Arquitectura y Tecnologia de Computadoras', 'English Beginners'],
+            1 => ['Algebra Lineal', 'Matematicas para Ingenieria I', 'Programacion I', 'Introduccion a la EDTI', 'Arquitectura y Tecnologia de Computadoras', 'English Beginners'],
             2 => ['Probabilidad y Estadistica', 'Matematicas para Ingenieria II', 'Programacion II', 'Logica Formal', 'Sistemas Logicos', 'English Intermediate'],
             3 => ['Ecuaciones Diferenciales', 'Fisica I', 'Programacion III', 'Algoritmica I', 'Automatas y Calculabilidad', 'English High Intermediate'],
             4 => ['Metodos Numericos', 'Fisica II', 'Programacion Funcional', 'Algoritmica II', 'Compilacion', 'English Advanced'],
