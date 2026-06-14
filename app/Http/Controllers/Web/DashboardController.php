@@ -17,6 +17,7 @@ use App\Models\Prerequisito;
 use App\Models\Semestre;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DashboardController extends Controller
@@ -203,6 +204,152 @@ class DashboardController extends Controller
         $modulo = Modulo::query()->orderBy('fecha_final', 'desc')->first();
 
         return $modulo?->id_modulo;
+    }
+
+    public function headStudents(Request $request): JsonResponse
+    {
+        $estudiantes = Estudiante::query()
+            ->orderBy('cohorte_ingreso')
+            ->orderBy('nombre')
+            ->get(['id_estudiante', 'nombre', 'apellido', 'correo', 'cohorte_ingreso', 'es_traspaso']);
+
+        $grouped = $estudiantes->groupBy('cohorte_ingreso')
+            ->map(fn ($group, $cohorte) => [
+                'cohorte' => $cohorte,
+                'estudiantes' => $group->map(fn ($e) => [
+                    'id_estudiante'   => $e->id_estudiante,
+                    'nombre'          => trim("{$e->nombre} {$e->apellido}"),
+                    'correo'          => $e->correo,
+                    'cohorte_ingreso' => $e->cohorte_ingreso,
+                    'es_traspaso'     => (bool) $e->es_traspaso,
+                ])->values(),
+            ])->values();
+
+        return response()->json(['data' => $grouped]);
+    }
+
+    public function headStudentMaterias(Request $request, int $idEstudiante): JsonResponse
+    {
+        $estudiante = Estudiante::findOrFail($idEstudiante);
+
+        $todasLasMaterias = Materia::orderBy('semestre_academico')->orderBy('nombre')->get();
+
+        // Inscripciones del estudiante
+        $inscripciones = Inscripcion::where('id_estudiante', $idEstudiante)
+            ->get()
+            ->keyBy('id_materia');
+
+        // Historial (convalidadas)
+        $historial = HistorialMateria::where('id_estudiante', $idEstudiante)
+            ->get()
+            ->keyBy('id_materia');
+
+        // Prerrequisitos: id_materia => [ids de sus prerrequisitos]
+        $prereqMap = Prerequisito::all()
+            ->groupBy('id_materia')
+            ->map(fn ($rows) => $rows->pluck('id_materia_prerrequisito')->all());
+
+        // IDs aprobadas o convalidadas (cuentan para habilitar prerrequisitos)
+        $aprobadas = collect();
+        foreach ($inscripciones as $idMat => $insc) {
+            if ($insc->estado === 'aprobada') $aprobadas->push($idMat);
+        }
+        foreach ($historial as $idMat => $hist) {
+            if ($hist->convalidada) $aprobadas->push($idMat);
+        }
+        $aprobadas = $aprobadas->unique()->values();
+
+        $materiasPorSemestre = $todasLasMaterias->groupBy('semestre_academico')
+            ->map(fn ($mats, $semNum) => [
+                'semestre' => $semNum,
+                'materias' => $mats->map(function ($m) use ($inscripciones, $historial, $prereqMap, $aprobadas) {
+                    $idMat = $m->id_materia;
+
+                    // Determinar estado
+                    if (isset($historial[$idMat]) && $historial[$idMat]->convalidada) {
+                        $estado = 'convalidada';
+                    } elseif (isset($inscripciones[$idMat])) {
+                        $estado = $inscripciones[$idMat]->estado;
+                    } else {
+                        $prereqs = $prereqMap[$idMat] ?? [];
+                        $prereqsCumplidos = empty($prereqs) || collect($prereqs)->every(fn ($pid) => $aprobadas->contains($pid));
+                        $estado = $prereqsCumplidos ? 'habilitada' : 'bloqueada';
+                    }
+
+                    return [
+                        'id_materia'          => $idMat,
+                        'nombre'              => $m->nombre,
+                        'semestre_academico'  => $m->semestre_academico,
+                        'anio_academico'      => $m->anio_academico,
+                        'estado'              => $estado,
+                        'id_inscripcion'      => $inscripciones[$idMat]?->id_inscripcion ?? null,
+                        'id_historial'        => $historial[$idMat]?->id_historial ?? null,
+                    ];
+                })->values(),
+            ])->values();
+
+        return response()->json([
+            'data' => [
+                'estudiante'  => [
+                    'id_estudiante'   => $estudiante->id_estudiante,
+                    'nombre'          => trim("{$estudiante->nombre} {$estudiante->apellido}"),
+                    'correo'          => $estudiante->correo,
+                    'cohorte_ingreso' => $estudiante->cohorte_ingreso,
+                    'es_traspaso'     => (bool) $estudiante->es_traspaso,
+                ],
+                'semestres' => $materiasPorSemestre,
+            ],
+        ]);
+    }
+
+    public function headConvalidarMateria(Request $request, int $idEstudiante, int $idMateria): JsonResponse
+    {
+        Materia::findOrFail($idMateria);
+        Estudiante::findOrFail($idEstudiante);
+
+        DB::transaction(function () use ($idEstudiante, $idMateria) {
+            // Marcar en historial como convalidada
+            HistorialMateria::updateOrCreate(
+                ['id_estudiante' => $idEstudiante, 'id_materia' => $idMateria],
+                ['convalidada' => true]
+            );
+
+            // Marcar inscripcion como aprobada si existe, o crear una
+            $inscripcion = Inscripcion::where('id_estudiante', $idEstudiante)
+                ->where('id_materia', $idMateria)
+                ->first();
+
+            if ($inscripcion) {
+                $inscripcion->update(['estado' => 'aprobada']);
+            } else {
+                Inscripcion::create([
+                    'id_estudiante'     => $idEstudiante,
+                    'id_materia'        => $idMateria,
+                    'id_modulo'         => null,
+                    'estado'            => 'aprobada',
+                    'intentos'          => 1,
+                    'fecha_inscripcion' => now(),
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'Materia convalidada correctamente.']);
+    }
+
+    public function headDesconvalidarMateria(Request $request, int $idEstudiante, int $idMateria): JsonResponse
+    {
+        DB::transaction(function () use ($idEstudiante, $idMateria) {
+            HistorialMateria::where('id_estudiante', $idEstudiante)
+                ->where('id_materia', $idMateria)
+                ->update(['convalidada' => false]);
+
+            Inscripcion::where('id_estudiante', $idEstudiante)
+                ->where('id_materia', $idMateria)
+                ->where('estado', 'aprobada')
+                ->delete();
+        });
+
+        return response()->json(['message' => 'Convalidación revertida.']);
     }
 
     public function headCreateDocente(Request $request): JsonResponse

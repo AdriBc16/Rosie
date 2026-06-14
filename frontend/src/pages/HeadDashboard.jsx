@@ -52,6 +52,13 @@ export default function HeadDashboard() {
   const [docenteForm, setDocenteForm] = useState({ nombre: '', apellido: '', correo: '' });
   const [docenteFeedback, setDocenteFeedback] = useState('');
   const [savingDocente, setSavingDocente] = useState(false);
+
+  // Pestaña estudiantes
+  const [studentsData, setStudentsData] = useState(null);  // grupos por cohorte
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentModal, setStudentModal] = useState(null);  // { estudiante, semestres }
+  const [loadingStudentMaterias, setLoadingStudentMaterias] = useState(false);
+  const [convalidandoId, setConvalidandoId] = useState(null);  // id_materia en proceso
   const [studentsYearModal, setStudentsYearModal] = useState(null);
   const [form, setForm] = useState({ id_materia: '', id_semestre: '', id_modulo: '', id_docente: '', id_aula: '', id_bloque: '', enrollment_mode: 'none' });
   const [graphModal, setGraphModal] = useState(null); // { type: 'year'|'full', yearNumber?: number }
@@ -91,6 +98,12 @@ export default function HeadDashboard() {
   useEffect(() => {
     loadCatalog();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'students' && studentsData === null) {
+      loadStudents();
+    }
+  }, [activeTab]);
 
   const docentesById = useMemo(() => Object.fromEntries((catalog.docentes || []).map((d) => [d.id_docente, d])), [catalog.docentes]);
   const materiasById = useMemo(() => Object.fromEntries((catalog.materias || []).map((m) => [m.id_materia, m])), [catalog.materias]);
@@ -867,6 +880,70 @@ export default function HeadDashboard() {
   const activePreviewYear = hoveredYear || previewYear;
   const activePreviewInfo = yearHoverPreview.get(activePreviewYear) || { approvedCount: 0, availableNow: [], opensNext: [] };
 
+  const loadStudents = async () => {
+    setLoadingStudents(true);
+    try {
+      const res = await axios.get('/portal/api/jefe/estudiantes');
+      setStudentsData(res.data.data || []);
+    } catch {
+      setStudentsData([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  const openStudentModal = async (estudiante) => {
+    setStudentModal({ estudiante, semestres: [] });
+    setLoadingStudentMaterias(true);
+    try {
+      const res = await axios.get(`/portal/api/jefe/estudiantes/${estudiante.id_estudiante}/materias`);
+      const data = res.data.data;
+      setStudentModal({ estudiante: data.estudiante, semestres: data.semestres });
+    } catch {
+      setStudentModal(null);
+    } finally {
+      setLoadingStudentMaterias(false);
+    }
+  };
+
+  const refreshStudentModal = async () => {
+    if (!studentModal) return;
+    const idEst = studentModal.estudiante.id_estudiante;
+    try {
+      const res = await axios.get(`/portal/api/jefe/estudiantes/${idEst}/materias`);
+      const data = res.data.data;
+      setStudentModal({ estudiante: data.estudiante, semestres: data.semestres });
+    } catch {}
+  };
+
+  const handleConvalidar = async (idMateria) => {
+    if (!studentModal) return;
+    const idEst = studentModal.estudiante.id_estudiante;
+    setConvalidandoId(idMateria);
+    try {
+      await axios.post(`/portal/api/jefe/estudiantes/${idEst}/materias/${idMateria}/convalidar`);
+      await refreshStudentModal();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al convalidar');
+    } finally {
+      setConvalidandoId(null);
+    }
+  };
+
+  const handleDesconvalidar = async (idMateria) => {
+    if (!studentModal) return;
+    const idEst = studentModal.estudiante.id_estudiante;
+    setConvalidandoId(idMateria);
+    try {
+      await axios.delete(`/portal/api/jefe/estudiantes/${idEst}/materias/${idMateria}/convalidar`);
+      await refreshStudentModal();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al revertir convalidación');
+    } finally {
+      setConvalidandoId(null);
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -896,6 +973,9 @@ export default function HeadDashboard() {
           </a>
           <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'create-docente' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('create-docente'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">badge</span><span className="font-semibold text-sm">Crear Docente</span>
+          </a>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'students' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('students'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <span className="material-symbols-outlined">school</span><span className="font-semibold text-sm">Estudiantes</span>
           </a>
         </nav>
 
@@ -1123,6 +1203,15 @@ export default function HeadDashboard() {
               </div>
             )}
 
+            {activeTab === 'students' && (
+              <StudentsTab
+                studentsData={studentsData}
+                loading={loadingStudents}
+                onRefresh={loadStudents}
+                onSelectStudent={openStudentModal}
+              />
+            )}
+
             {activeTab === 'enroll' && (
               <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
                 <h3 className="text-xl font-bold mb-4">Inscribir alumno a una materia</h3>
@@ -1333,6 +1422,226 @@ export default function HeadDashboard() {
       {showProfile && (
         <ProfileModal onClose={() => setShowProfile(false)} />
       )}
+
+      {studentModal && (
+        <StudentMateriasModal
+          data={studentModal}
+          loading={loadingStudentMaterias}
+          onClose={() => setStudentModal(null)}
+          onConvalidar={handleConvalidar}
+          onDesconvalidar={handleDesconvalidar}
+          convalidandoId={convalidandoId}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Componentes auxiliares ─────────────────────────── */
+
+const ESTADO_STYLES = {
+  aprobada:    { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
+  cursando:    { bg: 'bg-cyan-500/20',    text: 'text-cyan-300',    border: 'border-cyan-500/30',    dot: 'bg-cyan-400' },
+  reprobada:   { bg: 'bg-red-500/20',     text: 'text-red-300',     border: 'border-red-500/30',     dot: 'bg-red-400' },
+  convalidada: { bg: 'bg-violet-500/20',  text: 'text-violet-300',  border: 'border-violet-500/30',  dot: 'bg-violet-400' },
+  habilitada:  { bg: 'bg-amber-500/20',   text: 'text-amber-300',   border: 'border-amber-500/30',   dot: 'bg-amber-400' },
+  bloqueada:   { bg: 'bg-neutral-700/30', text: 'text-neutral-500', border: 'border-neutral-700/30', dot: 'bg-neutral-600' },
+  pendiente:   { bg: 'bg-neutral-700/30', text: 'text-neutral-400', border: 'border-neutral-700/30', dot: 'bg-neutral-500' },
+};
+
+function EstadoBadge({ estado }) {
+  const s = ESTADO_STYLES[estado] || ESTADO_STYLES.pendiente;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold border ${s.bg} ${s.text} ${s.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {estado}
+    </span>
+  );
+}
+
+function StudentsTab({ studentsData, loading, onRefresh, onSelectStudent }) {
+  const [search, setSearch] = useState('');
+
+  if (loading) return (
+    <div className="py-20 text-center text-neutral-400">Cargando estudiantes...</div>
+  );
+
+  if (!studentsData) return null;
+
+  const filteredGroups = studentsData.map(group => ({
+    ...group,
+    estudiantes: group.estudiantes.filter(e =>
+      !search || e.nombre.toLowerCase().includes(search.toLowerCase()) || e.correo.toLowerCase().includes(search.toLowerCase())
+    ),
+  })).filter(g => g.estudiantes.length > 0);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Estudiantes por cohorte</h2>
+          <p className="text-sm text-neutral-400 mt-0.5">Haz clic en un estudiante para ver su historial de materias</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o correo..."
+            className="bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-rose-500 w-64"
+          />
+          <button onClick={onRefresh} className="bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-neutral-300 hover:border-neutral-600">
+            <span className="material-symbols-outlined text-sm">refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {filteredGroups.length === 0 && (
+        <div className="py-20 text-center text-neutral-500">No se encontraron estudiantes.</div>
+      )}
+
+      {filteredGroups.map(group => (
+        <div key={group.cohorte ?? 'sin-cohorte'} className="bg-[#1a1a1a] rounded-[20px] border border-[#2d2d2d] overflow-hidden">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-[#2d2d2d]">
+            <span className="material-symbols-outlined text-rose-400">calendar_today</span>
+            <h3 className="text-white font-bold">
+              {group.cohorte ? `Cohorte ${group.cohorte}` : 'Sin cohorte registrada'}
+            </h3>
+            <span className="ml-auto px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-400 text-xs font-bold">
+              {group.estudiantes.length} estudiante{group.estudiantes.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="divide-y divide-[#2d2d2d]">
+            {group.estudiantes.map(est => (
+              <button
+                key={est.id_estudiante}
+                onClick={() => onSelectStudent(est)}
+                className="w-full flex items-center gap-4 px-6 py-4 hover:bg-neutral-800/50 transition-all text-left group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-black text-sm">{est.nombre.charAt(0)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-neutral-100 truncate group-hover:text-white">{est.nombre}</p>
+                  <p className="text-xs text-neutral-500 truncate">{est.correo}</p>
+                </div>
+                {est.es_traspaso && (
+                  <span className="flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                    TRASPASO
+                  </span>
+                )}
+                <span className="material-symbols-outlined text-neutral-700 group-hover:text-neutral-400 transition-colors text-sm">chevron_right</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StudentMateriasModal({ data, loading, onClose, onConvalidar, onDesconvalidar, convalidandoId }) {
+  const { estudiante, semestres } = data;
+  const esTraspaso = estudiante?.es_traspaso;
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-3xl rounded-2xl border border-neutral-800 bg-[#101010] flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-neutral-800 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center">
+              <span className="text-white font-black">{estudiante?.nombre?.charAt(0)}</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-white font-bold text-lg leading-tight">{estudiante?.nombre}</h3>
+                {esTraspaso && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                    TRASPASO
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-400">{estudiante?.correo} · Cohorte {estudiante?.cohorte_ingreso ?? '—'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-sm hover:bg-neutral-700">
+            Cerrar
+          </button>
+        </div>
+
+        {/* Leyenda */}
+        <div className="px-5 py-2.5 border-b border-neutral-800 flex flex-wrap gap-3 flex-shrink-0">
+          {Object.entries(ESTADO_STYLES).map(([estado, s]) => (
+            <span key={estado} className={`inline-flex items-center gap-1 text-[10px] font-semibold ${s.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{estado}
+            </span>
+          ))}
+          {esTraspaso && (
+            <span className="ml-auto text-[10px] text-violet-400 font-semibold">
+              · Haz clic en una materia para convalidarla
+            </span>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          {loading && <p className="text-center text-neutral-400 py-10">Cargando materias...</p>}
+
+          {!loading && semestres.map(sem => (
+            <div key={sem.semestre}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-black text-neutral-500 uppercase tracking-widest">Semestre {sem.semestre}</span>
+                <div className="flex-1 h-px bg-neutral-800" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {sem.materias.map(mat => {
+                  const isConvalidada = mat.estado === 'convalidada';
+                  const canConvalidar = esTraspaso && (mat.estado === 'habilitada' || mat.estado === 'bloqueada' || mat.estado === 'pendiente');
+                  const isProcessing = convalidandoId === mat.id_materia;
+
+                  return (
+                    <div
+                      key={mat.id_materia}
+                      className={`rounded-xl border p-3 transition-all ${
+                        (canConvalidar || isConvalidada) && esTraspaso
+                          ? 'cursor-pointer hover:border-violet-500/60 hover:bg-violet-500/5'
+                          : ''
+                      } ${ESTADO_STYLES[mat.estado]?.border || 'border-neutral-800'} bg-neutral-950`}
+                      onClick={() => {
+                        if (!esTraspaso) return;
+                        if (isProcessing) return;
+                        if (isConvalidada) {
+                          onDesconvalidar(mat.id_materia);
+                        } else if (canConvalidar) {
+                          onConvalidar(mat.id_materia);
+                        }
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-neutral-100 leading-tight">{mat.nombre}</p>
+                        {isProcessing ? (
+                          <span className="text-[10px] text-neutral-500 flex-shrink-0">...</span>
+                        ) : (
+                          <EstadoBadge estado={mat.estado} />
+                        )}
+                      </div>
+                      {esTraspaso && (isConvalidada || canConvalidar) && (
+                        <p className="text-[10px] text-neutral-600 mt-1">
+                          {isConvalidada ? 'Clic para revertir convalidación' : 'Clic para convalidar'}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
