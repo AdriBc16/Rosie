@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -34,6 +35,11 @@ class Estudiante extends Authenticatable
             'cohorte_ingreso' => 'integer',
             'es_traspaso' => 'boolean',
         ];
+    }
+
+    public function semestres(): BelongsToMany
+    {
+        return $this->belongsToMany(Semestre::class, 'estudiante_semestres', 'id_estudiante', 'id_semestre');
     }
 
     public function inscripciones(): HasMany

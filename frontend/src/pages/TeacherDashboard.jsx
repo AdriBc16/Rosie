@@ -36,9 +36,16 @@ export default function TeacherDashboard() {
   const [modulos, setModulos] = useState([]);
   const [selectedModulo, setSelectedModulo] = useState('');
 
-  const [studentsModal, setStudentsModal] = useState(null); // { title, meta, students }
+  const [studentsModal, setStudentsModal] = useState(null); // { title, meta, students, idDm }
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+
+  // Bulk status edit modal
+  const [editModal, setEditModal] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState({}); // { id_inscripcion: estado }
+  const [bulkStatus, setBulkStatus] = useState('aprobada');
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusFeedback, setStatusFeedback] = useState('');
 
   useEffect(() => {
     loadAssignments();
@@ -88,11 +95,12 @@ export default function TeacherDashboard() {
     setSavingDisp(true);
     setDispFeedback('');
     try {
-      await axios.post('/portal/api/docente/disponibilidad', { 
+      await axios.post('/portal/api/docente/disponibilidad', {
         id_modulo: selectedModulo,
-        bloques: myBlocks 
+        bloques: myBlocks
       });
       setDispFeedback('Disponibilidad guardada correctamente.');
+      setTimeout(() => setDispFeedback(''), 5000);
     } catch (err) {
       setDispFeedback('Error: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -101,7 +109,7 @@ export default function TeacherDashboard() {
   };
 
   const showStudents = async (idDm) => {
-    setStudentsModal({ title: 'Cargando...', meta: '', students: [] });
+    setStudentsModal({ title: 'Cargando...', meta: '', students: [], idDm });
     setLoadingStudents(true);
     try {
       const res = await axios.get(`/portal/api/docente/materias/${idDm}/estudiantes`);
@@ -110,11 +118,71 @@ export default function TeacherDashboard() {
         title: asignacion.materia || 'Materia',
         meta: `Módulo ${asignacion.modulo || '?'} · ${asignacion.fecha_inicio || '--'} → ${asignacion.fecha_fin || '--'}`,
         students: estudiantes || [],
+        idDm,
       });
     } catch (err) {
-      setStudentsModal({ title: 'Error', meta: err.response?.data?.message || err.message, students: [] });
+      setStudentsModal({ title: 'Error', meta: err.response?.data?.message || err.message, students: [], idDm });
     } finally {
       setLoadingStudents(false);
+    }
+  };
+
+  const openEditModal = () => {
+    setSelectedStudents({});
+    setBulkStatus('aprobada');
+    setStatusFeedback('');
+    setEditModal(true);
+  };
+
+  const toggleSelectStudent = (idInscripcion) => {
+    setSelectedStudents(prev => {
+      const next = { ...prev };
+      if (next[idInscripcion] !== undefined) {
+        delete next[idInscripcion];
+      } else {
+        next[idInscripcion] = bulkStatus;
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    const all = {};
+    studentsModal.students.forEach(s => { all[s.id_inscripcion] = bulkStatus; });
+    setSelectedStudents(all);
+  };
+
+  const clearSelection = () => setSelectedStudents({});
+
+  const applyBulkStatus = () => {
+    setSelectedStudents(prev => {
+      const next = {};
+      Object.keys(prev).forEach(id => { next[id] = bulkStatus; });
+      return next;
+    });
+  };
+
+  const saveStatusChanges = async () => {
+    const updates = Object.entries(selectedStudents).map(([id, estado]) => ({
+      id_inscripcion: Number(id),
+      estado,
+    }));
+    if (updates.length === 0) return;
+    setSavingStatus(true);
+    setStatusFeedback('');
+    try {
+      await axios.patch(`/portal/api/docente/materias/${studentsModal.idDm}/estudiantes/estados`, { updates });
+      setStatusFeedback('Estados actualizados correctamente.');
+      setTimeout(() => setStatusFeedback(''), 5000);
+      // Refresh student list
+      const res = await axios.get(`/portal/api/docente/materias/${studentsModal.idDm}/estudiantes`);
+      const { asignacion, estudiantes } = res.data.data;
+      setStudentsModal(prev => ({ ...prev, students: estudiantes || [] }));
+      setSelectedStudents({});
+    } catch (err) {
+      setStatusFeedback('Error: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSavingStatus(false);
     }
   };
 
@@ -224,11 +292,16 @@ export default function TeacherDashboard() {
                     onChange={handleModuloChange}
                     className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-500 w-full sm:w-auto"
                   >
-                    {modulos.map((m) => (
-                      <option key={m.id_modulo} value={m.id_modulo}>
-                        {m.nombre}
-                      </option>
-                    ))}
+                    {modulos.map((m) => {
+                      const inicio = m.fecha_inicio ? new Date(`${m.fecha_inicio}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+                      const fin = m.fecha_final ? new Date(`${m.fecha_final}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+                      const fecha = inicio && fin ? ` · ${inicio} – ${fin}` : inicio ? ` · ${inicio}` : '';
+                      return (
+                        <option key={m.id_modulo} value={m.id_modulo}>
+                          {m.nombre}{fecha}
+                        </option>
+                      );
+                    })}
                   </select>
                   <button
                     onClick={saveDisponibilidad}
@@ -342,7 +415,15 @@ export default function TeacherDashboard() {
                 <h3 className="text-white font-bold text-lg">{studentsModal.title}</h3>
                 <p className="text-xs text-neutral-400 mt-0.5">{studentsModal.meta}</p>
               </div>
-              <button onClick={() => setStudentsModal(null)} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-sm">Cerrar</button>
+              <div className="flex gap-2">
+                <button
+                  onClick={openEditModal}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-sm font-semibold hover:bg-indigo-500/30 transition-all"
+                >
+                  Modificar
+                </button>
+                <button onClick={() => setStudentsModal(null)} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-sm">Cerrar</button>
+              </div>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
               {loadingStudents && <p className="text-sm text-neutral-400 text-center py-8">Cargando...</p>}
@@ -369,6 +450,108 @@ export default function TeacherDashboard() {
           </div>
         </div>
       )}
+      {/* Modal Modificar Estados */}
+      {editModal && studentsModal && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={(e) => { if (e.target === e.currentTarget) setEditModal(false); }}
+        >
+          <div className="w-full max-w-xl rounded-2xl border border-neutral-800 bg-[#101010] flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-5 border-b border-neutral-800">
+              <div>
+                <h3 className="text-white font-bold text-lg">Modificar estados</h3>
+                <p className="text-xs text-neutral-400 mt-0.5">{studentsModal.title}</p>
+              </div>
+              <button onClick={() => setEditModal(false)} className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-300 text-sm">Cerrar</button>
+            </div>
+
+            {/* Controls */}
+            <div className="p-4 border-b border-neutral-800 flex flex-wrap gap-3 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 font-semibold">Estado a aplicar:</label>
+                <select
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value)}
+                  className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="aprobada">Aprobada</option>
+                  <option value="reprobada">Reprobada</option>
+                  <option value="cursando">Cursando</option>
+                  <option value="pendiente">Pendiente</option>
+                </select>
+              </div>
+              <button onClick={selectAll} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-800 text-neutral-300 border border-neutral-700 hover:border-neutral-600 transition-all">
+                Seleccionar todos
+              </button>
+              <button onClick={clearSelection} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-800 text-neutral-300 border border-neutral-700 hover:border-neutral-600 transition-all">
+                Limpiar
+              </button>
+              {Object.keys(selectedStudents).length > 0 && (
+                <button onClick={applyBulkStatus} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-500/30 transition-all">
+                  Aplicar estado a seleccionados
+                </button>
+              )}
+            </div>
+
+            {/* Student list */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {studentsModal.students.map((s) => {
+                const isSelected = selectedStudents[s.id_inscripcion] !== undefined;
+                const displayEstado = selectedStudents[s.id_inscripcion] ?? s.estado;
+                return (
+                  <div
+                    key={s.id_inscripcion}
+                    onClick={() => toggleSelectStudent(s.id_inscripcion)}
+                    className={`rounded-xl border p-3 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-indigo-500/60 bg-indigo-500/10'
+                        : 'border-neutral-800 bg-neutral-950 hover:border-neutral-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-neutral-600'
+                        }`}>
+                          {isSelected && <span className="text-white text-xs font-black">✓</span>}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-100">{s.nombre || 'Sin nombre'}</p>
+                          <p className="text-xs text-neutral-500">{s.correo}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold border ${STATUS_STYLES[displayEstado] || STATUS_STYLES.pendiente}`}>
+                        {displayEstado}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {studentsModal.students.length === 0 && (
+                <p className="text-sm text-neutral-500 text-center py-8">No hay estudiantes inscritos.</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-neutral-800 flex items-center justify-between gap-3">
+              {statusFeedback && (
+                <p className={`text-xs ${statusFeedback.includes('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {statusFeedback}
+                </p>
+              )}
+              {!statusFeedback && <span className="text-xs text-neutral-500">{Object.keys(selectedStudents).length} seleccionado(s)</span>}
+              <button
+                onClick={saveStatusChanges}
+                disabled={savingStatus || Object.keys(selectedStudents).length === 0}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-indigo-600 to-violet-500 text-white hover:brightness-110 disabled:opacity-40 transition-all"
+              >
+                {savingStatus ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Perfil */}
       {showProfile && (
         <ProfileModal onClose={() => setShowProfile(false)} />

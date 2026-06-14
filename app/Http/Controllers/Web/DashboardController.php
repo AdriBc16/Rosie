@@ -17,6 +17,7 @@ use App\Models\Prerequisito;
 use App\Models\Semestre;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class DashboardController extends Controller
 {
@@ -202,5 +203,32 @@ class DashboardController extends Controller
         $modulo = Modulo::query()->orderBy('fecha_final', 'desc')->first();
 
         return $modulo?->id_modulo;
+    }
+
+    public function headCreateDocente(Request $request): JsonResponse
+    {
+        $request->validate([
+            'nombre'   => 'required|string|max:80',
+            'apellido' => 'nullable|string|max:80',
+            'correo'   => 'required|email|unique:docentes,correo',
+        ]);
+
+        $docente = Docente::create([
+            'nombre'          => trim($request->nombre),
+            'apellido'        => trim($request->apellido ?? ''),
+            'correo'          => strtolower(trim($request->correo)),
+            'password'        => Hash::make('UPB123'),
+            'es_jefe_carrera' => false,
+        ]);
+
+        return response()->json([
+            'message' => 'Docente creado correctamente.',
+            'docente' => [
+                'id_docente' => $docente->id_docente,
+                'nombre'     => $docente->nombre,
+                'apellido'   => $docente->apellido,
+                'correo'     => $docente->correo,
+            ],
+        ], 201);
     }
 }

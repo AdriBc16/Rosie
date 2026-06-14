@@ -20,18 +20,21 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         $request->validate([
-            'nombre'   => 'required|string|max:50',
-            'apellido' => 'required|string|max:50',
-            'correo'   => 'required|email|unique:estudiantes,correo',
-            'password' => 'required|string|min:6|confirmed',
+            'nombre'          => 'required|string|max:50',
+            'apellido'        => 'required|string|max:50',
+            'correo'          => 'required|email|unique:estudiantes,correo',
+            'password'        => 'required|string|min:6|confirmed',
+            'cohorte_ingreso' => 'nullable|integer|min:2000|max:2100',
+            'es_traspaso'     => 'nullable|boolean',
         ]);
 
         $student = Estudiante::create([
-            'nombre'      => trim($request->nombre),
-            'apellido'    => trim($request->apellido),
-            'correo'      => strtolower(trim($request->correo)),
-            'password'    => Hash::make($request->password),
-            'es_traspaso' => false,
+            'nombre'          => trim($request->nombre),
+            'apellido'        => trim($request->apellido),
+            'correo'          => strtolower(trim($request->correo)),
+            'password'        => Hash::make($request->password),
+            'cohorte_ingreso' => $request->cohorte_ingreso,
+            'es_traspaso'     => (bool) $request->input('es_traspaso', false),
         ]);
 
         return response()->json([

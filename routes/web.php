@@ -19,6 +19,7 @@ Route::prefix('/portal/api')->group(function (): void {
 
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/register', [AuthController::class, 'register']);
+    Route::get('/semestres', fn () => response()->json(\App\Models\Semestre::orderBy('id_semestre')->get(['id_semestre', 'nombre'])));
 
 
     Route::post('/logout', [AuthController::class, 'logout'])
@@ -38,6 +39,7 @@ Route::middleware(['auth.portal', 'portal.role:docente'])->group(function (): vo
     Route::prefix('/portal/api/docente')->group(function (): void {
         Route::get('/materias', [DocenteController::class, 'teacherAssignments'])->name('portal.api.teacher.assignments');
         Route::get('/materias/{idDm}/estudiantes', [DocenteController::class, 'teacherAssignmentStudents'])->name('portal.api.teacher.assignment.students');
+        Route::patch('/materias/{idDm}/estudiantes/estados', [DocenteController::class, 'updateStudentsStatus'])->name('portal.api.teacher.students.status');
         Route::get('/disponibilidad', [DocenteController::class, 'getDisponibilidad'])->name('portal.api.teacher.get_disponibilidad');
         Route::post('/disponibilidad', [DocenteController::class, 'saveDisponibilidad'])->name('portal.api.teacher.save_disponibilidad');
     });
@@ -60,5 +62,6 @@ Route::middleware(['auth.portal', 'portal.role:jefe'])->group(function (): void 
         Route::post('/asignaciones', [MateriaController::class, 'headAssignMateria'])->name('portal.api.head.assignment.store');
         Route::post('/inscripciones', [InscripcionController::class, 'headEnrollStudent'])->name('portal.api.head.enrollment.store');
         Route::post('/estudiantes/{idEstudiante}/horario/generar', [EstudianteController::class, 'jefeGenerateScheduleForStudent'])->name('portal.api.head.student.schedule.generate');
+        Route::post('/docentes', [DashboardController::class, 'headCreateDocente'])->name('portal.api.head.docente.store');
     });
 });

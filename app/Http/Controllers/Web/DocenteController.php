@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Docente;
 use App\Models\DocenteMateria;
 use App\Models\Inscripcion;
 use App\Models\BloqueHorario;
@@ -10,6 +11,7 @@ use App\Models\DisponibilidadDocente;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DocenteController extends Controller
 {
@@ -78,10 +80,11 @@ class DocenteController extends Controller
             ->where('id_materia', $assignment->id_materia)
             ->get()
             ->map(fn (Inscripcion $i) => [
-                'id_estudiante' => $i->estudiante?->id_estudiante,
-                'nombre'        => trim("{$i->estudiante?->nombre} {$i->estudiante?->apellido}"),
-                'correo'        => $i->estudiante?->correo,
-                'estado'        => $i->estado,
+                'id_inscripcion' => $i->id_inscripcion,
+                'id_estudiante'  => $i->estudiante?->id_estudiante,
+                'nombre'         => trim("{$i->estudiante?->nombre} {$i->estudiante?->apellido}"),
+                'correo'         => $i->estudiante?->correo,
+                'estado'         => $i->estado,
             ])
             ->sortBy('nombre')
             ->values();
@@ -152,5 +155,34 @@ class DocenteController extends Controller
         });
 
         return response()->json(['message' => 'Disponibilidad guardada correctamente.']);
+    }
+
+    public function updateStudentsStatus(Request $request, int $idDm): JsonResponse
+    {
+        $portalUser = $request->session()->get('portal_user');
+
+        $assignment = DocenteMateria::where('id_docente', $portalUser['id'])
+            ->where('id_dm', $idDm)
+            ->first();
+
+        if (!$assignment) {
+            return response()->json(['message' => 'Asignacion no encontrada.'], 404);
+        }
+
+        $request->validate([
+            'updates'         => 'required|array|min:1',
+            'updates.*.id_inscripcion' => 'required|integer|exists:inscripciones,id_inscripcion',
+            'updates.*.estado' => 'required|in:cursando,aprobada,reprobada,pendiente',
+        ]);
+
+        DB::transaction(function () use ($request, $assignment) {
+            foreach ($request->updates as $update) {
+                Inscripcion::where('id_inscripcion', $update['id_inscripcion'])
+                    ->where('id_materia', $assignment->id_materia)
+                    ->update(['estado' => $update['estado']]);
+            }
+        });
+
+        return response()->json(['message' => 'Estados actualizados correctamente.']);
     }
 }

@@ -47,12 +47,34 @@ export default function HeadDashboard() {
 
   const [activeTab, setActiveTab] = useState('agenda');
   const [selectedCell, setSelectedCell] = useState(null);
+
+  // Crear docente
+  const [docenteForm, setDocenteForm] = useState({ nombre: '', apellido: '', correo: '' });
+  const [docenteFeedback, setDocenteFeedback] = useState('');
+  const [savingDocente, setSavingDocente] = useState(false);
   const [studentsYearModal, setStudentsYearModal] = useState(null);
   const [form, setForm] = useState({ id_materia: '', id_semestre: '', id_modulo: '', id_docente: '', id_aula: '', id_bloque: '', enrollment_mode: 'none' });
   const [graphModal, setGraphModal] = useState(null); // { type: 'year'|'full', yearNumber?: number }
   const [graphZoom, setGraphZoom] = useState(1);
   const [hoveredYear, setHoveredYear] = useState(null);
   const [previewYear, setPreviewYear] = useState(1);
+
+  const handleCreateDocente = async (e) => {
+    e.preventDefault();
+    setSavingDocente(true);
+    setDocenteFeedback('');
+    try {
+      const res = await axios.post('/portal/api/jefe/docentes', docenteForm);
+      setDocenteFeedback(`Docente "${res.data.docente.nombre} ${res.data.docente.apellido}" creado. Contraseña: UPB123`);
+      setTimeout(() => setDocenteFeedback(''), 5000);
+      setDocenteForm({ nombre: '', apellido: '', correo: '' });
+      loadCatalog();
+    } catch (err) {
+      setDocenteFeedback('Error: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSavingDocente(false);
+    }
+  };
 
   const loadCatalog = async () => {
     setLoading(true);
@@ -76,6 +98,25 @@ export default function HeadDashboard() {
   const aulasById = useMemo(() => Object.fromEntries((catalog.aulas || []).map((a) => [a.id_aula, a])), [catalog.aulas]);
   const semestresById = useMemo(() => Object.fromEntries((catalog.semestres || []).map((s) => [s.id_semestre, s])), [catalog.semestres]);
 
+  useEffect(() => {
+    if (!selectedCell || !catalog.modulos?.length) return;
+
+    const moduloEncontrado = catalog.modulos.find((m) => {
+      const semestre = semestresById[m.id_semestre];
+
+      return (
+        Number(semestre?.numero) === Number(selectedCell.semesterNumber) &&
+        Number(m.numero_en_semestre) === Number(selectedCell.moduloNumber)
+      );
+    });
+
+    if (moduloEncontrado) {
+      setForm((prev) => ({
+        ...prev,
+        id_modulo: String(moduloEncontrado.id_modulo),
+      }));
+    }
+  }, [selectedCell, catalog.modulos, semestresById]);
   const agendaItems = useMemo(() => {
     const raw = catalog.asignacionesActuales || [];
     return raw.map((a) => {
@@ -754,6 +795,7 @@ export default function HeadDashboard() {
       };
       const res = await axios.post('/portal/api/jefe/asignaciones', payload);
       setFeedback(res.data?.message || 'Asignación creada');
+      setTimeout(() => setFeedback(''), 5000);
       setSelectedCell(null);
       await loadCatalog();
     } catch (err) {
@@ -787,9 +829,11 @@ export default function HeadDashboard() {
           errors.push(`${st.nombre}: ${err.response?.data?.message || 'error'}`);
         }
       }
-      setFeedback(errors.length === 0
+      const msg = errors.length === 0
         ? `${ok} alumnos inscritos correctamente.`
-        : `${ok} inscritos. Errores: ${errors.join(' | ')}`);
+        : `${ok} inscritos. Errores: ${errors.join(' | ')}`;
+      setFeedback(msg);
+      if (errors.length === 0) setTimeout(() => setFeedback(''), 5000);
       await loadCatalog();
       return;
     }
@@ -798,6 +842,7 @@ export default function HeadDashboard() {
     try {
       const res = await axios.post('/portal/api/jefe/inscripciones', buildPayload(Number(form.id_estudiante)));
       setFeedback(res.data?.message || 'Inscripción realizada con éxito');
+      setTimeout(() => setFeedback(''), 5000);
       await loadCatalog();
     } catch (err) {
       setFeedback(err.response?.data?.message || 'Error en la inscripción');
@@ -848,6 +893,9 @@ export default function HeadDashboard() {
           </a>
           <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'enroll' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('enroll'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">person_add_alt</span><span className="font-semibold text-sm">Inscribir Alumno</span>
+          </a>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'create-docente' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('create-docente'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <span className="material-symbols-outlined">badge</span><span className="font-semibold text-sm">Crear Docente</span>
           </a>
         </nav>
 
@@ -1017,6 +1065,61 @@ export default function HeadDashboard() {
                 <button onClick={handleAssign} className="mt-4 px-8 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-500">
                   Vincular Docente
                 </button>
+              </div>
+            )}
+
+            {activeTab === 'create-docente' && (
+              <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d] max-w-lg">
+                <h3 className="text-xl font-bold mb-2">Crear cuenta de docente</h3>
+                <p className="text-sm text-neutral-400 mb-6">La contraseña inicial será <span className="font-mono bg-neutral-800 px-2 py-0.5 rounded text-rose-300">UPB123</span>. El docente puede cambiarla desde su perfil.</p>
+                <form onSubmit={handleCreateDocente} className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-neutral-500 uppercase font-bold mb-1 block">Nombre</label>
+                      <input
+                        type="text"
+                        required
+                        value={docenteForm.nombre}
+                        onChange={e => setDocenteForm(p => ({ ...p, nombre: e.target.value }))}
+                        placeholder="Ana"
+                        className="w-full bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500 uppercase font-bold mb-1 block">Apellido</label>
+                      <input
+                        type="text"
+                        value={docenteForm.apellido}
+                        onChange={e => setDocenteForm(p => ({ ...p, apellido: e.target.value }))}
+                        placeholder="García"
+                        className="w-full bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500 uppercase font-bold mb-1 block">Correo electrónico</label>
+                    <input
+                      type="email"
+                      required
+                      value={docenteForm.correo}
+                      onChange={e => setDocenteForm(p => ({ ...p, correo: e.target.value }))}
+                      placeholder="ana.garcia@upb.edu.bo"
+                      className="w-full bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  {docenteFeedback && (
+                    <div className={`px-4 py-3 rounded-xl text-sm border ${docenteFeedback.startsWith('Error') ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+                      {docenteFeedback}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={savingDocente}
+                    className="px-8 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-500 disabled:opacity-50 transition-all"
+                  >
+                    {savingDocente ? 'Creando...' : 'Crear Docente'}
+                  </button>
+                </form>
               </div>
             )}
 
