@@ -70,10 +70,14 @@ class AcademicDataSeeder extends Seeder
             'Redes de Computadoras',
             'Ingenieria de Software',
             'Gestion de Proyectos',
+            'Tecnicas de Comunicacion Escritas',
         ];
 
         foreach ($materias as $nombreMateria) {
-            Materia::firstOrCreate(['nombre' => $nombreMateria]);
+            Materia::firstOrCreate([
+                'nombre' => $nombreMateria,
+                'creditos' => 3,
+            ]);
         }
 
         $nombres = ['Carlos', 'Maria', 'Jose', 'Ana', 'Luis', 'Paola', 'Javier', 'Daniela', 'Miguel', 'Andrea','Josue ', 'Sofia', 'Diego', 'Valentina', 'Fernando', 'Camila', 'Ricardo', 'Isabella', 'Alberto', 'Gabriela', 'Enrique'];
@@ -110,6 +114,38 @@ class AcademicDataSeeder extends Seeder
                     'id_universidad' => $universidad->id_universidad,
                     'correo' => $correo,
                     'id_modulo' => $modulo->id_modulo,
+                    'password' => Hash::make('UPB123'),
+                ]
+            );
+        }
+
+        $nuevosDocentes = [
+            ['Alejandro', 'Rodriguez'],
+            ['Daniel', 'Hilera'],
+            ['Dodovrosky', 'Medrano'],
+            ['Roberto', 'Terceros'],
+            ['Gustavo', 'Perez'],
+            ['Nina', 'Santos'],
+            ['Daniel', 'Rosales'],
+            ['Carla', 'Saucedo'],
+            ['Marcos', 'Quispe'],
+            ['Ricardo', 'Laredo'],
+            ['Eddy', 'Vega'],
+            ['Igor', 'Alarcon'],
+            ['Nanetti', 'Natalia'],
+            ['Oscar', 'Rollando'],
+            ['Chambi', 'Antonio'],
+        ];
+
+        foreach ($nuevosDocentes as [$nombre, $apellido]) {
+            $correo = strtolower($nombre) . '.' . strtolower($apellido) . '@goodorder.edu.bo';
+            Docente::updateOrCreate(
+                ['correo' => $correo],
+                [
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'es_jefe_carrera' => false,
+                    'correo' => $correo,
                     'password' => Hash::make('UPB123'),
                 ]
             );

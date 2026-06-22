@@ -49,6 +49,7 @@ export default function StudentDashboard() {
   const [cargandoOpciones, setCargandoOpciones] = useState(false);
   const [opcionesError, setOpcionesError] = useState('');
   const [confirmando, setConfirmando] = useState(false);
+  const [customModal, setCustomModal] = useState(null); // { type: 'confirm' | 'alert', message, onConfirm }
 
   const handleGenerarOpciones = async () => {
     setGenerando(true);
@@ -78,22 +79,29 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleConfirmarOpcion = async (opcion) => {
-    if (!window.confirm(`¿Estás seguro de elegir la ${opcion.label}? Esto fijará el horario de tus materias.`)) return;
-    
-    setConfirmando(true);
-    try {
-      await axios.post('/portal/api/estudiante/horario/confirmar', {
-        items: opcion.items
-      });
-      setHorarioFeedback('¡Horario confirmado con éxito!');
-      setOpciones([]);
-      refreshDashboard(); // Recargar datos para ver el horario confirmado
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error al confirmar horario.');
-    } finally {
-      setConfirmando(false);
-    }
+  const handleConfirmarOpcion = (opcion) => {
+    setCustomModal({
+      type: 'confirm',
+      message: `¿Estás seguro de elegir la ${opcion.label}? Esto fijará el horario de tus materias.`,
+      onConfirm: async () => {
+        setConfirmando(true);
+        try {
+          await axios.post('/portal/api/estudiante/horario/confirmar', {
+            items: opcion.items
+          });
+          setHorarioFeedback('¡Horario confirmado con éxito!');
+          setOpciones([]);
+          refreshDashboard(); // Recargar datos para ver el horario confirmado
+        } catch (err) {
+          setCustomModal({
+            type: 'alert',
+            message: err.response?.data?.message || 'Error al confirmar horario.'
+          });
+        } finally {
+          setConfirmando(false);
+        }
+      }
+    });
   };
 
   const handleLogout = async () => {
@@ -454,6 +462,46 @@ export default function StudentDashboard() {
       </main>
       {showProfile && (
         <ProfileModal onClose={() => setShowProfile(false)} />
+      )}
+      {customModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all">
+          <div className="bg-[#121212] border border-[#2d2d2d] rounded-3xl max-w-md w-full p-6 shadow-2xl border-rose-500/20">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center text-white">
+                <span className="material-symbols-outlined text-xl">
+                  {customModal.type === 'confirm' ? 'help_outline' : 'info'}
+                </span>
+              </span>
+              <h3 className="text-xl font-black text-white">
+                {customModal.type === 'confirm' ? 'Confirmación' : 'Aviso'}
+              </h3>
+            </div>
+            <p className="text-neutral-300 text-sm mb-6 leading-relaxed font-medium">
+              {customModal.message}
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              {customModal.type === 'confirm' && (
+                <button
+                  onClick={() => {
+                    setCustomModal(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900 font-bold text-sm transition-all"
+                >
+                  Cancelar
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (customModal.onConfirm) customModal.onConfirm();
+                  setCustomModal(null);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:brightness-110 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-900/30"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

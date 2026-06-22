@@ -84,6 +84,16 @@ class EstudianteController extends Controller
 
         // Resolver oferta para cada inscripción; las materias semestrales tienen una oferta por módulo
         $inscList = $inscripciones->flatMap(function ($insc) use ($materiasSemanales) {
+            // Si la inscripción tiene un módulo asignado y no es semestral, buscamos la oferta correspondiente a ese módulo
+            if (!in_array($insc->materia->nombre, $materiasSemanales) && $insc->id_modulo) {
+                $oferta = DocenteMateria::where('id_materia', $insc->id_materia)
+                    ->where('id_modulo', $insc->id_modulo)
+                    ->first();
+                if ($oferta) {
+                    return [['insc' => $insc, 'oferta' => $oferta]];
+                }
+            }
+
             $ofertas = DocenteMateria::where('id_materia', $insc->id_materia)->get();
             if ($ofertas->isEmpty()) return [];
             // Materias semestrales: incluir todas las ofertas (una por módulo)
@@ -210,7 +220,12 @@ class EstudianteController extends Controller
             foreach ($request->items as $item) {
                 // 2. Fijar el horario en docente_materias si aún es NULL
                 // Esto hace que la primera persona que elija, "gane" el horario para el grupo.
-                $oferta = DocenteMateria::where('id_materia', $item['id_materia'])->first();
+                $oferta = DocenteMateria::where('id_materia', $item['id_materia'])
+                    ->where('id_modulo', $item['id_modulo'])
+                    ->first();
+                if (!$oferta) {
+                    $oferta = DocenteMateria::where('id_materia', $item['id_materia'])->first();
+                }
                 if ($oferta && (!$oferta->id_modulo || !$oferta->id_bloque)) {
                     $oferta->update([
                         'id_modulo' => $item['id_modulo'],
@@ -240,15 +255,15 @@ class EstudianteController extends Controller
     public function headGetDocentesConMaterias(Request $request): JsonResponse
     {
         $docentes = \App\Models\Docente::where('es_jefe_carrera', false)
-            ->with(['materias' => function($q) {
-                $q->with(['modulo:id_modulo,nombre', 'aula:id_aula,nombre', 'bloque:id_bloque,nombre,hora_inicio,hora_fin', 'docente:id_docente,nombre,apellido']);
+            ->with(['docenteMaterias' => function($q) {
+                $q->with(['materia', 'modulo:id_modulo,nombre', 'aula:id_aula,nombre', 'bloque:id_bloque,nombre,hora_inicio,hora_fin']);
             }])
             ->orderBy('nombre')
             ->get();
 
         $result = $docentes->map(function($docente) {
             $materiasAgrupadas = [];
-            foreach ($docente->materias as $dm) {
+            foreach ($docente->docenteMaterias as $dm) {
                 $keyMateria = $dm->id_materia;
                 if (!isset($materiasAgrupadas[$keyMateria])) {
                     $materiasAgrupadas[$keyMateria] = [

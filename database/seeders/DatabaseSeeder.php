@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
             ['nombre' => 'F', 'hora_inicio' => '19:00:00', 'hora_fin' => '21:00:00', 'dia_semana' => null, 'orden' => 6],
         ])->map(fn ($b) => BloqueHorario::create($b));
 
-        $aulas = collect(['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'LAB 1', 'LAB 2'])
+        $aulas = collect(['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'LAB 1', 'LAB 2'])
             ->mapWithKeys(fn ($n) => [$n => Aula::create(['nombre' => $n, 'capacidad' => 40])]);
 
         $modulosBySemNum = [];
@@ -65,7 +65,7 @@ class DatabaseSeeder extends Seeder
 
         // Regla: 2 materias por modulo -> 6 por semestre
         $materiasPorSemestre = [
-            1 => ['Algebra Lineal', 'Matematicas para Ingenieria I', 'Programacion I', 'Introduccion a la EDTI', 'Arquitectura y Tecnologia de Computadoras', 'English Beginners'],
+            1 => ['Algebra Lineal', 'Matematicas para Ingenieria I', 'Programacion I', 'Introduccion a la EDTI', 'Arquitectura y Tecnologia de Computadoras', 'English Beginners', 'Tecnicas de Comunicacion Escritas'],
             2 => ['Probabilidad y Estadistica', 'Matematicas para Ingenieria II', 'Programacion II', 'Logica Formal', 'Sistemas Logicos', 'English Intermediate'],
             3 => ['Ecuaciones Diferenciales', 'Fisica I', 'Programacion III', 'Algoritmica I', 'Automatas y Calculabilidad', 'English High Intermediate'],
             4 => ['Metodos Numericos', 'Fisica II', 'Programacion Funcional', 'Algoritmica II', 'Compilacion', 'English Advanced'],
@@ -123,6 +123,7 @@ class DatabaseSeeder extends Seeder
             'Inteligencia Artificial' => 4,
             'Topicos Selectos en Inteligencia Artificial' => 3,
             'Tecnicas de Comunicacion Escrita' => 3,
+            'Tecnicas de Comunicacion Escritas' => 3,
             'Sistemas Logicos' => 4,
             'Automatas y Calculabilidad' => 4,
             'English Advanced' => 6,
@@ -247,6 +248,45 @@ class DatabaseSeeder extends Seeder
             }
         }
 
+        $nuevosDocentes = [
+            ['Alejandro', 'Rodriguez'],
+            ['Daniel', 'Hilera'],
+            ['Dodovrosky', 'Medrano'],
+            ['Roberto', 'Terceros'],
+            ['Gustavo', 'Perez'],
+            ['Nina', 'Santos'],
+            ['Daniel', 'Rosales'],
+            ['Carla', 'Saucedo'],
+            ['Marcos', 'Quispe'],
+            ['Ricardo', 'Laredo'],
+            ['Eddy', 'Vega'],
+            ['Igor', 'Alarcon'],
+            ['Nanetti', 'Natalia'],
+            ['Oscar', 'Rollando'],
+            ['Chambi', 'Antonio'],
+        ];
+
+        foreach ($nuevosDocentes as [$nombre, $apellido]) {
+            $correo = strtolower($nombre) . '.' . strtolower($apellido) . '@goodorder.test';
+            $doc = Docente::create([
+                'nombre' => $nombre,
+                'apellido' => $apellido,
+                'es_jefe_carrera' => false,
+                'correo' => $correo,
+                'password' => Hash::make('UPB123'),
+            ]);
+
+            foreach ($bloques as $bloque) {
+                foreach ($todosMod as $modulo) {
+                    \App\Models\DisponibilidadDocente::create([
+                        'id_docente' => $doc->id_docente,
+                        'id_bloque'  => $bloque->id_bloque,
+                        'id_modulo'  => $modulo->id_modulo,
+                    ]);
+                }
+            }
+        }
+
         // Asignaciones demo
         $asignaciones = [
             ['Programacion I', $doc1, '1-1', 'A', 'A1'],
@@ -285,115 +325,179 @@ class DatabaseSeeder extends Seeder
             ->map(fn ($n) => $materiasByName[$n])
             ->values();
 
-        // foreach ($cohortYears as $idx => $cohortYear) {
-        //     $studentNumber = $idx + 1;
-        //
-        //     $est = Estudiante::create([
-        //         'nombre' => "Estudiante{$studentNumber}",
-        //         'apellido' => "Cohorte{$cohortYear}",
-        //         'correo' => "estudiante{$studentNumber}@goodorder.test",
-        //         'cohorte_ingreso' => $cohortYear,
-        //         'password' => Hash::make('UPB123'),
-        //         'es_traspaso' => false,
-        //     ]);
-        //
-        //     // Ej: 5to año => 4 años completados => 4*2*6 = 48 materias aprobadas.
-        //     $nivelActual = max(1, min(5, ($currentYear - $cohortYear) + 1));
-        //     $semestresCompletados = max(0, min(10, ($nivelActual - 1) * 2));
-        //     $materiasCompletadasObjetivo = $semestresCompletados * 6;
-        //
-        //     $completed = [];
-        //     foreach ($orderedMaterias as $mat) {
-        //         if (count($completed) >= $materiasCompletadasObjetivo) {
-        //             break;
-        //         }
-        //         $reqs = $prereqByMateriaId[$mat->id_materia] ?? [];
-        //         $allReqMet = empty(array_diff($reqs, $completed));
-        //         if (!$allReqMet) {
-        //             continue;
-        //         }
-        //
-        //         $completed[] = $mat->id_materia;
-        //
-        //         HistorialMateria::create([
-        //             'id_estudiante' => $est->id_estudiante,
-        //             'id_materia' => $mat->id_materia,
-        //             'convalidada' => false,
-        //         ]);
-        //
-        //         $sem = $materiaSemestreById[$mat->id_materia] ?? null;
-        //         $pos = $materiaPosicionEnSemestreById[$mat->id_materia] ?? null;
-        //         if ($sem === null || $pos === null) {
-        //             continue;
-        //         }
-        //
-        //         $moduloNum = intdiv($pos - 1, 2) + 1;
-        //         $modKey = "{$sem}-{$moduloNum}";
-        //         if (!isset($modulosBySemNum[$modKey])) {
-        //             continue;
-        //         }
-        //
-        //         $inscYear = $cohortYear + intdiv($sem - 1, 2);
-        //         $inscMonth = ($sem % 2 === 1) ? 2 : 8;
-        //
-        //         Inscripcion::create([
-        //             'id_estudiante' => $est->id_estudiante,
-        //             'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
-        //             'id_materia' => $mat->id_materia,
-        //             'estado' => 'aprobada',
-        //             'intentos' => 1,
-        //             'fecha_inscripcion' => Carbon::create($inscYear, $inscMonth, 10, 8, 0, 0),
-        //         ]);
-        //     }
-        //
-        //     // Materias en curso del nivel actual: hasta 29 créditos por semestre, 2 por módulo.
-        //     $semA = $semestresCompletados + 1;
-        //     $semB = $semestresCompletados + 2;
-        //
-        //     foreach ([$semA, $semB] as $sem) {
-        //         if ($sem < 1 || $sem > 10 || !isset($materiasPorSemestre[$sem])) {
-        //             continue;
-        //         }
-        //
-        //         $creditosSemestre = 0;
-        //         $matSem = array_slice($materiasPorSemestre[$sem], 0, 6);
-        //         foreach ($matSem as $idxMat => $mName) {
-        //             $mat = $materiasByName[$mName] ?? null;
-        //             if (!$mat) {
-        //                 continue;
-        //             }
-        //             $reqs = $prereqByMateriaId[$mat->id_materia] ?? [];
-        //             $allReqMet = empty(array_diff($reqs, $completed));
-        //             if (!$allReqMet) {
-        //                 continue;
-        //             }
-        //
-        //             $creditos = $creditosPorMateria[$mName] ?? 3;
-        //             if ($creditosSemestre + $creditos > 29) {
-        //                 continue; // Respetar límite de 29 créditos por semestre
-        //             }
-        //
-        //             $moduloNum = intdiv($idxMat, 2) + 1;
-        //             $modKey = "{$sem}-{$moduloNum}";
-        //             if (!isset($modulosBySemNum[$modKey])) {
-        //                 continue;
-        //             }
-        //
-        //             $inscYear = $cohortYear + intdiv($sem - 1, 2);
-        //             $inscMonth = ($sem % 2 === 1) ? 2 : 8;
-        //
-        //             Inscripcion::create([
-        //                 'id_estudiante' => $est->id_estudiante,
-        //                 'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
-        //                 'id_materia' => $mat->id_materia,
-        //                 'estado' => 'cursando',
-        //                 'intentos' => 1,
-        //                 'fecha_inscripcion' => Carbon::create($inscYear, $inscMonth, 10, 8, 0, 0),
-        //             ]);
-        //             $creditosSemestre += $creditos;
-        //         }
-        //     }
-        // }
+        $studentsByCohort = [
+            2022 => [
+                ['Nari', 'Chun', false],
+                ['Rogrigo', 'Soto', false],
+                ['Nicolas', 'Chavez', false],
+                ['Camila', 'Vargas', false],
+                ['Javier', 'Flores', false],
+                ['Sofia', 'Mendez', false],
+                ['Diego', 'Salazar', false],
+                ['Valentina', 'Rojas', false],
+                ['Fernando', 'Fernandez', false],
+                ['Paola', 'Cabrera', false],
+            ],
+            2023 => [
+                ['Miguel', 'Acha', false],
+                ['Fernando', 'Diaz', false],
+                ['Nicolas', 'Crespo', false],
+                ['Ariana', 'Anglaril', false],
+                ['Anima', 'Antonio', true],
+                ['Omar', 'Simpson', false],
+                ['Alan', 'Arias', false],
+            ],
+            2024 => [
+                ['Irene', 'Landivar', false],
+                ['Adriana', 'Bauer', false],
+                ['Miguel', 'Lopez', false],
+                ['Santiago', 'Daens', false],
+                ['Ignacio', 'Daza', false],
+                ['Said', 'Daza', false],
+                ['Jose', 'Luque', false],
+                ['Alexei', 'Fernandez', true],
+                ['Hernan', 'Ayala', true],
+                ['Santiago', 'Villanueva', false],
+                ['Alan', 'Villavicencio', true],
+                ['Ciro', 'Chavez', false],
+                ['Matias', 'Nunez', false],
+                ['Matias', 'Baldivieso', false],
+                ['Sebastian', 'Saravia', false],
+            ],
+            2025 => [
+                ['Luis', 'Rojas', false],
+                ['Paola', 'Salazar', false],
+                ['Javier', 'Cabrera', false],
+                ['Daniela', 'Lopez', false],
+                ['Miguel', 'Fernandez', false],
+                ['Andrea', 'Rojas', false],
+                ['Josue', 'Vargas', false],
+                ['Sofia', 'Flores', false],
+                ['Diego', 'Mendez', false],
+                ['Valentina', 'Rivera', false],
+                ['Fernando', 'Gomez', false],
+                ['Camila', 'Alvarez', false],
+                ['Ricardo', 'Torres', false],
+                ['Isabella', 'Ruiz', false],
+                ['Alberto', 'Suarez', false],
+                ['Gabriela', 'Morales', false],
+                ['Enrique', 'Castillo', false],
+                ['Carlos', 'Ortiz', false],
+                ['Maria', 'Ramos', false],
+                ['Jose', 'Silva', false],
+            ],
+            2026 => [
+                ['Ana', 'Martinez', false],
+                ['Lucas', 'Romero', false],
+                ['Lucia', 'Herrera', false],
+                ['Juan', 'Medina', false],
+                ['Juana', 'Castro', false],
+                ['Marcos', 'Delgado', false],
+                ['Marta', 'Ortega', false],
+                ['Mateo', 'Rubio', false],
+                ['Maya', 'Marin', false],
+                ['Mario', 'Sanz', false],
+                ['Maria', 'Cruz', false],
+                ['Manuel', 'Nunez', false],
+                ['Manuela', 'Iglesias', false],
+                ['Martin', 'Gomez', false],
+                ['Martina', 'Vidal', false],
+                ['Pablo', 'Pena', false],
+                ['Paula', 'Calvo', false],
+                ['Pedro', 'Soler', false],
+                ['Petra', 'Campos', false],
+                ['Rafael', 'Vega', false],
+                ['Rafaela', 'Fuentes', false],
+                ['Ramon', 'Carrasco', false],
+                ['Ramona', 'Diez', false],
+                ['Raul', 'Caballero', false],
+                ['Rebeca', 'Nieto', false],
+                ['Ruben', 'Santana', false],
+                ['Rosa', 'Vargas', false],
+                ['Roberto', 'Guzman', false],
+                ['Sara', 'Aguilar', false],
+                ['Sergio', 'Mendez', false],
+                ['Silvia', 'Soto', false],
+                ['Simon', 'Rojas', false],
+                ['Teresa', 'Torres', false],
+                ['Tomas', 'Ibanez', false],
+                ['Valeria', 'Ortiz', false],
+            ],
+        ];
+
+        $generateEmail = function ($nombre, $apellido) {
+            $search  = ['á', 'é', 'í', 'ó', 'ú', 'ñ', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ñ'];
+            $replace = ['a', 'e', 'i', 'o', 'u', 'n', 'a', 'e', 'i', 'o', 'u', 'n'];
+            $nombre = str_replace($search, $replace, $nombre);
+            $apellido = str_replace($search, $replace, $apellido);
+
+            $nombreClean = strtolower(preg_replace('/[^A-Za-z0-9]/', '', $nombre));
+            $apellidoClean = strtolower(preg_replace('/[^A-Za-z0-9]/', '', $apellido));
+            return "{$nombreClean}.{$apellidoClean}@goodorder.test";
+        };
+
+        foreach ($studentsByCohort as $cohortYear => $students) {
+            foreach ($students as [$nombre, $apellido, $esTraspaso]) {
+                $correo = $generateEmail($nombre, $apellido);
+                $est = Estudiante::create([
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'correo' => $correo,
+                    'cohorte_ingreso' => $cohortYear,
+                    'password' => Hash::make('UPB123'),
+                    'es_traspaso' => $esTraspaso,
+                ]);
+
+                // Ej: 5to año => 4 años completados => 4*2*6 = 48 materias aprobadas.
+                $nivelActual = max(1, min(5, ($currentYear - $cohortYear) + 1));
+                $semestresCompletados = max(0, min(10, ($nivelActual - 1) * 2));
+                $materiasCompletadasObjetivo = $semestresCompletados * 6;
+
+                $completed = [];
+                foreach ($orderedMaterias as $mat) {
+                    if (count($completed) >= $materiasCompletadasObjetivo) {
+                        break;
+                    }
+                    $reqs = $prereqByMateriaId[$mat->id_materia] ?? [];
+                    $allReqMet = empty(array_diff($reqs, $completed));
+                    if (!$allReqMet) {
+                        continue;
+                    }
+
+                    $completed[] = $mat->id_materia;
+
+                    HistorialMateria::create([
+                        'id_estudiante' => $est->id_estudiante,
+                        'id_materia' => $mat->id_materia,
+                        'convalidada' => false,
+                    ]);
+
+                    $sem = $materiaSemestreById[$mat->id_materia] ?? null;
+                    $pos = $materiaPosicionEnSemestreById[$mat->id_materia] ?? null;
+                    if ($sem === null || $pos === null) {
+                        continue;
+                    }
+
+                    $moduloNum = intdiv($pos - 1, 2) + 1;
+                    $modKey = "{$sem}-{$moduloNum}";
+                    if (!isset($modulosBySemNum[$modKey])) {
+                        continue;
+                    }
+
+                    $inscYear = $cohortYear + intdiv($sem - 1, 2);
+                    $inscMonth = ($sem % 2 === 1) ? 2 : 8;
+
+                    Inscripcion::create([
+                        'id_estudiante' => $est->id_estudiante,
+                        'id_modulo' => $modulosBySemNum[$modKey]->id_modulo,
+                        'id_materia' => $mat->id_materia,
+                        'estado' => 'aprobada',
+                        'intentos' => 1,
+                        'fecha_inscripcion' => Carbon::create($inscYear, $inscMonth, 10, 8, 0, 0),
+                    ]);
+                }
+            }
+        }
 
         $this->command->info('Base poblada con malla 2 materias/modulo y progreso por cohorte de inscripcion.');
         $this->command->info('Login jefe: jefe@goodorder.test / UPB123');

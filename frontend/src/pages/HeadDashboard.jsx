@@ -62,6 +62,8 @@ export default function HeadDashboard() {
   // Pestaña docentes-materias
   const [docentesMateriales, setDocentesMateriales] = useState([]);
   const [loadingDocentesMateriales, setLoadingDocentesMateriales] = useState(false);
+  const [docenteExpandido, setDocenteExpandido] = useState(null);
+  const [docenteSearch, setDocenteSearch] = useState('');
   const [loadingStudentMaterias, setLoadingStudentMaterias] = useState(false);
   const [convalidandoId, setConvalidandoId] = useState(null);  // id_materia en proceso
   const [studentsYearModal, setStudentsYearModal] = useState(null);
@@ -71,6 +73,7 @@ export default function HeadDashboard() {
   const [graphZoom, setGraphZoom] = useState(1);
   const [hoveredYear, setHoveredYear] = useState(null);
   const [previewYear, setPreviewYear] = useState(1);
+  const [customModal, setCustomModal] = useState(null); // { type: 'confirm' | 'alert', message, onConfirm }
 
   const handleCreateDocente = async (e) => {
     e.preventDefault();
@@ -362,24 +365,6 @@ export default function HeadDashboard() {
     catalog.asignacionesActuales,
     catalog.modulos,
   ]);
-  // Materias que tienen al menos un docente asignado
-  const materiasConDocente = useMemo(() => {
-    const ids = new Set((catalog.asignacionesActuales || []).map((a) => a.id_materia));
-    return (catalog.materias || []).filter((m) => ids.has(m.id_materia));
-  }, [catalog.materias, catalog.asignacionesActuales]);
-
-  // Materias disponibles para inscribir al alumno seleccionado (con docente y sin inscripción activa)
-  const materiasParaInscribir = useMemo(() => {
-    if (!form.id_estudiante || String(form.id_estudiante).startsWith('cohort-')) return materiasConDocente;
-    const idEst = Number(form.id_estudiante);
-    const yaInscritas = new Set(
-      (catalog.inscripciones || [])
-        .filter((i) => i.id_estudiante === idEst && i.estado !== 'reprobada')
-        .map((i) => i.id_materia),
-    );
-    return materiasConDocente.filter((m) => !yaInscritas.has(m.id_materia));
-  }, [materiasConDocente, form.id_estudiante, catalog.inscripciones]);
-
   // Estudiantes agrupados por semestre académico actual (estimado por cohorte)
   const estudiantesPorSemestre = useMemo(() => {
     const map = new Map();
@@ -393,6 +378,56 @@ export default function HeadDashboard() {
     });
     return new Map([...map.entries()].sort((a, b) => a[0] - b[0]));
   }, [catalog.estudiantes]);
+
+  // Materias que tienen al menos un docente asignado (filtrado por módulo si se selecciona uno)
+  const materiasConDocente = useMemo(() => {
+    let assignments = catalog.asignacionesActuales || [];
+    if (form.id_modulo) {
+      const modId = Number(form.id_modulo);
+      assignments = assignments.filter((a) => a.id_modulo === modId);
+    }
+    const ids = new Set(assignments.map((a) => a.id_materia));
+    return (catalog.materias || []).filter((m) => ids.has(m.id_materia));
+  }, [catalog.materias, catalog.asignacionesActuales, form.id_modulo]);
+
+  // Materias disponibles para inscribir al alumno seleccionado (con docente y sin inscripción activa)
+  const materiasParaInscribir = useMemo(() => {
+    if (!form.id_estudiante) return materiasConDocente;
+
+    if (String(form.id_estudiante).startsWith('cohort-')) {
+      const semNum = Number(String(form.id_estudiante).replace('cohort-', ''));
+      const students = estudiantesPorSemestre.get(semNum) || [];
+      if (students.length === 0) return materiasConDocente;
+
+      // Agrupamos inscripciones por estudiante para acceso rápido
+      const studentEnrollments = new Map();
+      (catalog.inscripciones || []).forEach((i) => {
+        if (i.estado !== 'reprobada') {
+          if (!studentEnrollments.has(i.id_estudiante)) {
+            studentEnrollments.set(i.id_estudiante, new Set());
+          }
+          studentEnrollments.get(i.id_estudiante).add(i.id_materia);
+        }
+      });
+
+      // Conservamos solo materias donde al menos un alumno del semestre NO esté inscrito
+      return materiasConDocente.filter((m) => {
+        const todosInscritos = students.every((st) => {
+          const materiasDelAlumno = studentEnrollments.get(st.id_estudiante);
+          return materiasDelAlumno && materiasDelAlumno.has(m.id_materia);
+        });
+        return !todosInscritos;
+      });
+    }
+
+    const idEst = Number(form.id_estudiante);
+    const yaInscritas = new Set(
+      (catalog.inscripciones || [])
+        .filter((i) => i.id_estudiante === idEst && i.estado !== 'reprobada')
+        .map((i) => i.id_materia),
+    );
+    return materiasConDocente.filter((m) => !yaInscritas.has(m.id_materia));
+  }, [materiasConDocente, form.id_estudiante, catalog.inscripciones, estudiantesPorSemestre]);
 
   const studentByYear = useMemo(() => {
     const map = new Map();
@@ -880,25 +915,47 @@ export default function HeadDashboard() {
       const semNum = Number(String(form.id_estudiante).replace('cohort-', ''));
       const students = estudiantesPorSemestre.get(semNum) || [];
       if (students.length === 0) { setError('No hay alumnos en ese semestre.'); return; }
-      let ok = 0; const creditErrors = []; const otherErrors = [];
+      let ok = 0;
+      const creditErrors = [];
+      const alreadyEnrolled = [];
+      const otherErrors = [];
       for (const st of students) {
         try {
           await axios.post('/portal/api/jefe/inscripciones', buildPayload(st.id_estudiante));
           ok++;
         } catch (err) {
           const isCreditError = err.response?.data?.credit_error;
-          const msg = `${st.nombre}: ${err.response?.data?.message || 'error'}`;
-          if (isCreditError) creditErrors.push(st.nombre);
-          else otherErrors.push(msg);
+          const msg = err.response?.data?.message || '';
+          if (isCreditError) {
+            creditErrors.push(st.nombre);
+          } else if (msg.includes('ya está inscrito')) {
+            alreadyEnrolled.push(st.nombre);
+          } else {
+            otherErrors.push(`${st.nombre}: ${msg || 'error'}`);
+          }
         }
       }
+
+      if (alreadyEnrolled.length > 0) {
+        if (alreadyEnrolled.length === 1) {
+          setCustomModal({ type: 'alert', message: 'El alumno ya está inscrito a esa materia' });
+        } else {
+          setCustomModal({ type: 'alert', message: 'Los alumnos ya están inscritos a esa materia' });
+        }
+      }
+
       const parts = [];
       if (ok > 0) parts.push(`${ok} inscrito(s) correctamente`);
       if (creditErrors.length > 0) parts.push(`Sin créditos: ${creditErrors.join(', ')}`);
       if (otherErrors.length > 0) parts.push(otherErrors.join(' | '));
-      const msg = parts.join('. ');
-      const hasErrors = creditErrors.length > 0 || otherErrors.length > 0;
-      hasErrors ? setError(msg) : setSuccess(msg);
+
+      if (parts.length > 0) {
+        const msg = parts.join('. ');
+        const hasErrors = creditErrors.length > 0 || otherErrors.length > 0;
+        hasErrors ? setError(msg) : setSuccess(msg);
+      } else {
+        setFeedback('');
+      }
       await loadCatalog();
       return;
     }
@@ -909,7 +966,12 @@ export default function HeadDashboard() {
       setSuccess(res.data?.message || 'Inscripción realizada con éxito');
       await loadCatalog();
     } catch (err) {
-      setError(err.response?.data?.message || 'Error en la inscripción');
+      const errMsg = err.response?.data?.message || '';
+      if (errMsg.includes('ya está inscrito')) {
+        setCustomModal({ type: 'alert', message: 'El alumno ya está inscrito a esa materia' });
+      } else {
+        setError(errMsg || 'Error en la inscripción');
+      }
     }
   };
 
@@ -1290,7 +1352,25 @@ export default function HeadDashboard() {
               <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
                 <h3 className="text-xl font-bold mb-4">Inscribir alumno a una materia</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value }))}>
+                  <select
+                    className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3"
+                    value={form.id_modulo}
+                    onChange={(e) => {
+                      const newModId = e.target.value;
+                      setForm((p) => {
+                        let updatedMateria = p.id_materia;
+                        if (newModId && p.id_materia) {
+                          const isAssigned = (catalog.asignacionesActuales || []).some(
+                            (a) => a.id_modulo === Number(newModId) && a.id_materia === Number(p.id_materia)
+                          );
+                          if (!isAssigned) {
+                            updatedMateria = '';
+                          }
+                        }
+                        return { ...p, id_modulo: newModId, id_materia: updatedMateria };
+                      });
+                    }}
+                  >
                     <option value="">Selección Automática (Mejor opción)</option>
                     {(catalog.modulos || []).map((m) => <option key={`enroll-mod-${m.id_modulo}`} value={m.id_modulo}>{m.nombre} ({formatDateShort(m.fecha_inicio)})</option>)}
                   </select>
@@ -1302,23 +1382,32 @@ export default function HeadDashboard() {
                     <option value="">Seleccionar Estudiante</option>
                     {Array.from(estudiantesPorSemestre.entries()).map(([sem, students]) => (
                       <optgroup key={`sem-${sem}`} label={`Semestre ${sem}`}>
+                        <option value={`cohort-${sem}`}>[TODOS] Inscribir a todos del Semestre {sem} ({students.length} alumnos)</option>
                         {students.map((est) => <option key={`enroll-est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido}</option>)}
                       </optgroup>
                     ))}
                   </select>
                 </div>
                 <button onClick={handleEnroll} className="mt-4 px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-500">
-                  Inscribir Alumno
+                  {form.id_estudiante && String(form.id_estudiante).startsWith('cohort-')
+                    ? `Inscribir TODOS (Semestre ${String(form.id_estudiante).replace('cohort-', '')})`
+                    : 'Inscribir Alumno'}
                 </button>
               </div>
             )}
 
-            {activeTab === 'docentes-materias' && (
+            {activeTab === 'docentes-materias' && (() => {
+              const docentesFiltrados = docentesMateriales.filter((d) => {
+                if (!docenteSearch.trim()) return true;
+                const q = docenteSearch.toLowerCase();
+                return `${d.nombre} ${d.apellido}`.toLowerCase().includes(q) || d.correo.toLowerCase().includes(q);
+              });
+              return (
               <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d] flex-1 overflow-y-auto">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h3 className="text-2xl font-bold text-white">Docentes y Materias</h3>
-                    <p className="text-neutral-400 text-sm mt-1">Vista de docentes con sus materias asignadas y estudiantes inscritos</p>
+                    <p className="text-neutral-400 text-sm mt-1">Haz clic en un docente para ver sus materias y estudiantes</p>
                   </div>
                   <button
                     onClick={loadDocentesMateriales}
@@ -1328,95 +1417,127 @@ export default function HeadDashboard() {
                   </button>
                 </div>
 
+                <div className="relative mb-4">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-lg">search</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar docente por nombre o correo..."
+                    value={docenteSearch}
+                    onChange={(e) => setDocenteSearch(e.target.value)}
+                    className="w-full bg-[#121212] border border-[#2d2d2d] rounded-xl pl-10 pr-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-500 text-sm"
+                  />
+                </div>
+
                 {loadingDocentesMateriales ? (
                   <div className="flex items-center justify-center py-12 text-neutral-400">
                     <span>Cargando...</span>
                   </div>
-                ) : docentesMateriales.length === 0 ? (
+                ) : docentesFiltrados.length === 0 ? (
                   <div className="flex items-center justify-center py-12 text-neutral-400">
-                    <span>No hay docentes con materias asignadas</span>
+                    <span>{docenteSearch ? 'No se encontraron docentes' : 'No hay docentes registrados'}</span>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {docentesMateriales.map((docente) => (
-                      <div key={docente.id_docente} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 overflow-hidden">
-                        <div className="bg-gradient-to-r from-rose-600 to-orange-500 px-4 py-3 rounded-lg mb-4">
-                          <h4 className="text-lg font-bold text-white">{docente.nombre} {docente.apellido}</h4>
-                          <p className="text-xs text-white/80">{docente.correo}</p>
-                          <p className="text-xs text-white/60 mt-1">{docente.materias.length} materia(s)</p>
-                        </div>
+                  <div className="space-y-2">
+                    {docentesFiltrados.map((docente) => {
+                      const isOpen = docenteExpandido === docente.id_docente;
+                      return (
+                      <div key={docente.id_docente} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setDocenteExpandido(isOpen ? null : docente.id_docente)}
+                          className="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                              {docente.nombre.charAt(0)}{docente.apellido.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-white">{docente.nombre} {docente.apellido}</h4>
+                              <p className="text-xs text-neutral-500">{docente.correo}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs bg-neutral-800 text-neutral-300 px-2.5 py-1 rounded-lg border border-neutral-700">
+                              {docente.materias.length} materia{docente.materias.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className={`material-symbols-outlined text-neutral-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                          </div>
+                        </button>
 
-                        {docente.materias.length === 0 ? (
-                          <div className="text-neutral-500 text-sm p-3">Sin materias asignadas</div>
-                        ) : (
-                          <div className="space-y-3">
-                            {docente.materias.map((materia) => (
-                              <div key={materia.id_materia} className="bg-neutral-800/50 border border-neutral-700 rounded-lg p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div>
-                                    <h5 className="font-semibold text-white text-sm">{materia.nombre}</h5>
-                                    <p className="text-xs text-neutral-400">{materia.creditos} créditos</p>
-                                  </div>
-                                </div>
+                        {isOpen && (
+                          <div className="px-5 pb-4 border-t border-neutral-800">
+                            {docente.materias.length === 0 ? (
+                              <div className="text-neutral-500 text-sm py-4 text-center">Sin materias asignadas</div>
+                            ) : (
+                              <div className="space-y-3 mt-3">
+                                {docente.materias.map((materia) => (
+                                  <div key={materia.id_materia} className="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div>
+                                        <h5 className="font-semibold text-white text-sm">{materia.nombre}</h5>
+                                        <p className="text-xs text-neutral-400">{materia.creditos} créditos</p>
+                                      </div>
+                                    </div>
 
-                                {materia.modulos.length > 0 && (
-                                  <div className="mb-3">
-                                    <p className="text-xs font-medium text-neutral-300 mb-2">Módulos:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {materia.modulos.map((mod, idx) => (
-                                        <div key={idx} className="bg-neutral-700/50 rounded px-2 py-1 text-xs text-neutral-200">
-                                          <div className="font-medium">{mod.nombre}</div>
-                                          {mod.bloque && mod.aula && (
-                                            <>
-                                              <div className="text-neutral-400">{mod.horario}</div>
-                                              <div className="text-neutral-400">Aula: {mod.aula}</div>
-                                            </>
-                                          )}
+                                    {materia.modulos.length > 0 && (
+                                      <div className="mb-3">
+                                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Módulos</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {materia.modulos.map((mod, idx) => (
+                                            <div key={idx} className="bg-neutral-700/50 rounded-lg px-3 py-1.5 text-xs text-neutral-200">
+                                              <div className="font-medium">{mod.nombre}</div>
+                                              {mod.bloque && mod.aula && (
+                                                <>
+                                                  <div className="text-neutral-400">{mod.horario}</div>
+                                                  <div className="text-neutral-400">Aula: {mod.aula}</div>
+                                                </>
+                                              )}
+                                            </div>
+                                          ))}
                                         </div>
-                                      ))}
+                                      </div>
+                                    )}
+
+                                    <div>
+                                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+                                        Estudiantes ({materia.estudiantes.length})
+                                      </p>
+                                      {materia.estudiantes.length > 0 ? (
+                                        <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto">
+                                          {materia.estudiantes.map((est) => (
+                                            <div key={est.id_estudiante} className="bg-neutral-900/50 rounded-lg px-3 py-2 text-xs flex items-center justify-between">
+                                              <div>
+                                                <div className="text-neutral-100 font-medium">{est.nombre} {est.apellido}</div>
+                                                <div className="text-neutral-500">{est.correo}</div>
+                                              </div>
+                                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                                est.estado === 'aprobada' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                est.estado === 'cursando' ? 'bg-cyan-500/20 text-cyan-300' :
+                                                est.estado === 'pendiente' ? 'bg-amber-500/20 text-amber-300' :
+                                                'bg-neutral-700 text-neutral-300'
+                                              }`}>
+                                                {est.estado}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="text-neutral-500 text-xs">Sin estudiantes inscritos</div>
+                                      )}
                                     </div>
                                   </div>
-                                )}
-
-                                {materia.estudiantes.length > 0 && (
-                                  <div>
-                                    <p className="text-xs font-medium text-neutral-300 mb-2">
-                                      Estudiantes ({materia.estudiantes.length}):
-                                    </p>
-                                    <div className="grid grid-cols-1 gap-1 max-h-40 overflow-y-auto">
-                                      {materia.estudiantes.map((est) => (
-                                        <div key={est.id_estudiante} className="bg-neutral-900/50 rounded px-2 py-1 text-xs flex items-center justify-between">
-                                          <div>
-                                            <div className="text-neutral-100">{est.nombre} {est.apellido}</div>
-                                            <div className="text-neutral-500">{est.correo}</div>
-                                          </div>
-                                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                            est.estado === 'aprobada' ? 'bg-emerald-500/20 text-emerald-300' :
-                                            est.estado === 'cursando' ? 'bg-cyan-500/20 text-cyan-300' :
-                                            est.estado === 'pendiente' ? 'bg-amber-500/20 text-amber-300' :
-                                            'bg-neutral-700 text-neutral-300'
-                                          }`}>
-                                            {est.estado}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {materia.estudiantes.length === 0 && (
-                                  <div className="text-neutral-500 text-xs py-2">Sin estudiantes inscritos</div>
-                                )}
+                                ))}
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="w-80 flex flex-col gap-6">
