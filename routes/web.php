@@ -63,6 +63,7 @@ Route::middleware(['auth.portal', 'portal.role:jefe'])->group(function (): void 
         Route::post('/inscripciones', [InscripcionController::class, 'headEnrollStudent'])->name('portal.api.head.enrollment.store');
         Route::post('/estudiantes/{idEstudiante}/horario/generar', [EstudianteController::class, 'jefeGenerateScheduleForStudent'])->name('portal.api.head.student.schedule.generate');
         Route::post('/docentes', [DashboardController::class, 'headCreateDocente'])->name('portal.api.head.docente.store');
+        Route::get('/docentes-materias', [EstudianteController::class, 'headGetDocentesConMaterias'])->name('portal.api.head.docentes_materias');
         Route::get('/estudiantes', [DashboardController::class, 'headStudents'])->name('portal.api.head.students');
         Route::get('/estudiantes/{idEstudiante}/materias', [DashboardController::class, 'headStudentMaterias'])->name('portal.api.head.student.materias');
         Route::post('/estudiantes/{idEstudiante}/materias/{idMateria}/convalidar', [DashboardController::class, 'headConvalidarMateria'])->name('portal.api.head.student.convalidar');

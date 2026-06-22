@@ -79,46 +79,61 @@ class EstudianteController extends Controller
     {
         $schedule = [];
         $usedSlots = []; // modulo_id => [bloque_id => true]
-        
-        // Barajar materias para dar variedad en cada opción si hay múltiples bloques
-        $inscList = $inscripciones->shuffle($seed);
-        
-        // Agrupamos por módulos para intentar balancear 2 materias por módulo
-        $moduloIndex = 0;
-        foreach ($inscList as $idx => $insc) {
-            $targetModulo = $modulos[$moduloIndex % 3];
-            
-            // Buscar oferta para esta materia
-            $oferta = DocenteMateria::where('id_materia', $insc->id_materia)->first();
-            if (!$oferta) continue;
 
-            // Si la oferta YA tiene modulo y bloque fijos (porque alguien más ya eligió), debemos respetarlo
-            if ($oferta->id_modulo && $oferta->id_bloque) {
-                $item = $this->formatScheduleItem($oferta);
-                $item['fijo'] = true;
-                $schedule[] = $item;
+        $materiasSemanales = ['English Beginners', 'English Intermediate', 'English High Intermediate', 'English Advanced'];
+
+        // Resolver oferta para cada inscripción; las materias semestrales tienen una oferta por módulo
+        $inscList = $inscripciones->flatMap(function ($insc) use ($materiasSemanales) {
+            $ofertas = DocenteMateria::where('id_materia', $insc->id_materia)->get();
+            if ($ofertas->isEmpty()) return [];
+            // Materias semestrales: incluir todas las ofertas (una por módulo)
+            if (in_array($insc->materia->nombre, $materiasSemanales)) {
+                return $ofertas->map(fn ($o) => ['insc' => $insc, 'oferta' => $o])->all();
+            }
+            return [['insc' => $insc, 'oferta' => $ofertas->first()]];
+        })->values();
+
+        // Separar en fijas (ya tienen módulo y bloque asignados) y libres
+        $fijas = $inscList->filter(fn ($item) => $item['oferta']->id_modulo && $item['oferta']->id_bloque);
+        $libres = $inscList->filter(fn ($item) => !$item['oferta']->id_modulo || !$item['oferta']->id_bloque)->shuffle($seed);
+
+        // Primero procesar las fijas para reservar sus slots
+        foreach ($fijas as $item) {
+            $oferta = $item['oferta'];
+            // Solo agregar si el slot no está ya ocupado (evitar duplicados de datos)
+            if (!isset($usedSlots[$oferta->id_modulo][$oferta->id_bloque])) {
+                $entry = $this->formatScheduleItem($oferta);
+                $entry['fijo'] = true;
+                $schedule[] = $entry;
                 $usedSlots[$oferta->id_modulo][$oferta->id_bloque] = true;
-            } else {
-                // Si está libre, buscamos un bloque disponible según la DisponibilidadDocente
-                $bloque = $this->findAvailableSlot($oferta->id_docente, $targetModulo->id_modulo, $usedSlots[$targetModulo->id_modulo] ?? [], $seed + $idx);
-                
-                if ($bloque) {
-                    $schedule[] = [
-                        'id_materia' => $insc->id_materia,
-                        'materia_nombre' => $insc->materia->nombre,
-                        'id_docente' => $oferta->id_docente,
-                        'docente_nombre' => $oferta->docente?->nombre . ' ' . $oferta->docente?->apellido,
-                        'id_modulo' => $targetModulo->id_modulo,
-                        'modulo_nombre' => $targetModulo->nombre,
-                        'id_bloque' => $bloque->id_bloque,
-                        'bloque_nombre' => $bloque->nombre,
-                        'bloque_hora' => substr($bloque->hora_inicio, 0, 5) . ' - ' . substr($bloque->hora_fin, 0, 5),
-                        'id_aula' => $oferta->id_aula,
-                        'aula_nombre' => $oferta->aula?->nombre,
-                        'fijo' => false
-                    ];
-                    $usedSlots[$targetModulo->id_modulo][$bloque->id_bloque] = true;
-                }
+            }
+        }
+
+        // Luego asignar las libres evitando slots ya ocupados
+        $moduloIndex = 0;
+        foreach ($libres->values() as $idx => $item) {
+            $insc = $item['insc'];
+            $oferta = $item['oferta'];
+            $targetModulo = $modulos[$moduloIndex % $modulos->count()];
+
+            $bloque = $this->findAvailableSlot($oferta->id_docente, $targetModulo->id_modulo, $usedSlots[$targetModulo->id_modulo] ?? [], $seed + $idx);
+
+            if ($bloque) {
+                $schedule[] = [
+                    'id_materia' => $insc->id_materia,
+                    'materia_nombre' => $insc->materia->nombre,
+                    'id_docente' => $oferta->id_docente,
+                    'docente_nombre' => $oferta->docente?->nombre . ' ' . $oferta->docente?->apellido,
+                    'id_modulo' => $targetModulo->id_modulo,
+                    'modulo_nombre' => $targetModulo->nombre,
+                    'id_bloque' => $bloque->id_bloque,
+                    'bloque_nombre' => $bloque->nombre,
+                    'bloque_hora' => substr($bloque->hora_inicio, 0, 5) . ' - ' . substr($bloque->hora_fin, 0, 5),
+                    'id_aula' => $oferta->id_aula,
+                    'aula_nombre' => $oferta->aula?->nombre,
+                    'fijo' => false
+                ];
+                $usedSlots[$targetModulo->id_modulo][$bloque->id_bloque] = true;
             }
 
             if (($idx + 1) % self::TARGET_MATERIAS_POR_MODULO === 0) {
@@ -220,6 +235,83 @@ class EstudianteController extends Controller
 
             return response()->json(['message' => 'Horario confirmado con éxito.']);
         });
+    }
+
+    public function headGetDocentesConMaterias(Request $request): JsonResponse
+    {
+        $docentes = \App\Models\Docente::where('es_jefe_carrera', false)
+            ->with(['materias' => function($q) {
+                $q->with(['modulo:id_modulo,nombre', 'aula:id_aula,nombre', 'bloque:id_bloque,nombre,hora_inicio,hora_fin', 'docente:id_docente,nombre,apellido']);
+            }])
+            ->orderBy('nombre')
+            ->get();
+
+        $result = $docentes->map(function($docente) {
+            $materiasAgrupadas = [];
+            foreach ($docente->materias as $dm) {
+                $keyMateria = $dm->id_materia;
+                if (!isset($materiasAgrupadas[$keyMateria])) {
+                    $materiasAgrupadas[$keyMateria] = [
+                        'id_materia' => $dm->id_materia,
+                        'nombre' => $dm->materia?->nombre,
+                        'creditos' => $dm->materia?->creditos,
+                        'modulos' => [],
+                        'estudiantes' => []
+                    ];
+                }
+
+                $moduloInfo = [
+                    'id_modulo' => $dm->id_modulo,
+                    'nombre' => $dm->modulo?->nombre,
+                    'aula' => $dm->aula?->nombre,
+                    'bloque' => $dm->bloque?->nombre,
+                    'horario' => $dm->bloque ? (substr($dm->bloque->hora_inicio, 0, 5) . ' - ' . substr($dm->bloque->hora_fin, 0, 5)) : null
+                ];
+
+                if (!in_array($moduloInfo, $materiasAgrupadas[$keyMateria]['modulos'])) {
+                    $materiasAgrupadas[$keyMateria]['modulos'][] = $moduloInfo;
+                }
+            }
+
+            // Obtener estudiantes inscritos en las materias de este docente
+            $inscripciones = Inscripcion::whereIn('id_materia', array_keys($materiasAgrupadas))
+                ->with(['estudiante:id_estudiante,nombre,apellido,correo'])
+                ->get();
+
+            foreach ($inscripciones as $insc) {
+                if (isset($materiasAgrupadas[$insc->id_materia])) {
+                    $estudianteData = [
+                        'id_estudiante' => $insc->estudiante->id_estudiante,
+                        'nombre' => $insc->estudiante->nombre,
+                        'apellido' => $insc->estudiante->apellido,
+                        'correo' => $insc->estudiante->correo,
+                        'estado' => $insc->estado
+                    ];
+
+                    $found = false;
+                    foreach ($materiasAgrupadas[$insc->id_materia]['estudiantes'] as $est) {
+                        if ($est['id_estudiante'] === $estudianteData['id_estudiante']) {
+                            $found = true;
+                            break;
+                        }
+                    }
+
+                    if (!$found) {
+                        $materiasAgrupadas[$insc->id_materia]['estudiantes'][] = $estudianteData;
+                    }
+                }
+            }
+
+            return [
+                'id_docente' => $docente->id_docente,
+                'nombre' => $docente->nombre,
+                'apellido' => $docente->apellido,
+                'correo' => $docente->correo,
+                'materias' => array_values($materiasAgrupadas)
+            ];
+        });
+
+        return response()->json(['data' => $result]);
     }
 
     private function getActiveModuloId(): ?int

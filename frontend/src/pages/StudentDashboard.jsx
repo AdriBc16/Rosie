@@ -22,10 +22,22 @@ export default function StudentDashboard() {
   const { user, dashboardData, logout, refreshDashboard } = useAuth();
   const navigate = useNavigate();
 
-  const inscripciones = dashboardData?.inscripciones || [];
-  const totalCredits  = dashboardData?.totalCredits || 0;
-  const horario       = dashboardData?.horario || null;
-  const mallaCursada  = dashboardData?.mallaCursada || [];
+  const semestresData     = dashboardData?.semestresData || [];
+  const currentSemestreId = dashboardData?.currentSemestreId || null;
+  const horario           = dashboardData?.horario || null;
+  const mallaCursada      = dashboardData?.mallaCursada || [];
+
+  const [selectedSemestreId, setSelectedSemestreId] = useState(null);
+
+  useEffect(() => {
+    if (currentSemestreId && selectedSemestreId === null) {
+      setSelectedSemestreId(currentSemestreId);
+    }
+  }, [currentSemestreId]);
+
+  const selectedSemestreData = semestresData.find(s => s.id_semestre === selectedSemestreId) || semestresData[0] || null;
+  const inscripciones = selectedSemestreData?.inscripciones || [];
+  const totalCredits  = selectedSemestreData?.totalCredits || 0;
 
   const [generando, setGenerando] = useState(false);
   const [horarioFeedback, setHorarioFeedback] = useState('');
@@ -125,16 +137,32 @@ export default function StudentDashboard() {
 
         {/* Credits progress in sidebar */}
         <div className="mb-6 bg-neutral-900 rounded-2xl p-4 border border-neutral-800">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-1">
             <p className="text-[10px] text-neutral-500 uppercase font-bold">Créditos</p>
             <span className={`text-sm font-black ${creditOver ? 'text-red-400' : 'text-white'}`}>{totalCredits}/{CREDIT_LIMIT}</span>
           </div>
+          {selectedSemestreData && inscripciones.length > 0 && (
+            <p className="text-[9px] text-neutral-600 mb-2 truncate">{selectedSemestreData.nombre}</p>
+          )}
           <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${creditOver ? 'bg-red-500' : 'bg-gradient-to-r from-rose-500 to-orange-400'}`}
               style={{ width: `${creditPct}%` }}
             />
           </div>
+          {semestresData.length > 1 && (
+            <select
+              value={selectedSemestreId || ''}
+              onChange={(e) => setSelectedSemestreId(Number(e.target.value))}
+              className="mt-3 w-full bg-neutral-950 border border-neutral-800 rounded-lg text-[10px] text-neutral-400 px-2 py-1.5 focus:outline-none focus:border-rose-500"
+            >
+              {semestresData.map(s => (
+                <option key={s.id_semestre} value={s.id_semestre}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="pt-4 border-t border-neutral-800">
@@ -205,18 +233,48 @@ export default function StudentDashboard() {
           {/* Tabs content */}
           {activeTab === 'materias' && (
             <div className="bg-neutral-900/30 rounded-[24px] border border-neutral-800 p-6">
-              <h2 className="text-xl font-bold text-white mb-6">Mis Inscripciones Actuales</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {inscripciones.map((item) => (
-                  <div key={item.id_inscripcion} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4">
-                    <h3 className="text-white font-bold text-sm mb-2">{item.materia || 'Sin nombre'}</h3>
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="material-symbols-outlined text-sm text-neutral-600">grade</span>
-                      <span className="text-xs text-neutral-400">{item.modulo?.creditos_materia ?? '5'} créditos</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Mis Inscripciones</h2>
+                  {selectedSemestreData && inscripciones.length > 0 && (
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {selectedSemestreData.nombre}
+                      {selectedSemestreData.fecha_inicio ? ` · desde ${new Date(selectedSemestreData.fecha_inicio + 'T00:00:00').toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}` : ''}
+                    </p>
+                  )}
+                </div>
+                {semestresData.length > 1 && (
+                  <select
+                    value={selectedSemestreId || ''}
+                    onChange={(e) => setSelectedSemestreId(Number(e.target.value))}
+                    className="bg-neutral-900 border border-neutral-800 rounded-xl text-xs text-neutral-300 px-3 py-2 focus:outline-none focus:border-rose-500"
+                  >
+                    {semestresData.map(s => (
+                      <option key={s.id_semestre} value={s.id_semestre}>
+                        {s.nombre}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
+              {inscripciones.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <span className="material-symbols-outlined text-4xl text-neutral-700 mb-3">menu_book</span>
+                  <p className="text-neutral-500 text-sm">No tienes materias inscritas en este semestre.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {inscripciones.map((item) => (
+                    <div key={item.id_inscripcion} className="bg-[#131313] rounded-2xl border border-neutral-800 p-4">
+                      <h3 className="text-white font-bold text-sm mb-2">{item.materia || 'Sin nombre'}</h3>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className="material-symbols-outlined text-sm text-neutral-600">grade</span>
+                        <span className="text-xs text-neutral-400">{item.modulo?.creditos_materia ?? '3'} créditos</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

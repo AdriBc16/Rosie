@@ -118,8 +118,10 @@ class InscripcionController extends Controller
         if (($creditosActuales + $creditosNueva) > 29) {
             $estudiante = Estudiante::find($idEstudiante);
             $nombreAlumno = trim("{$estudiante->nombre} {$estudiante->apellido}");
+            $creditosDisponibles = 29 - $creditosActuales;
             return response()->json([
-                'message' => "el alumno {$nombreAlumno} no puede cursar la materia {$materiaNew->nombre} porque excede los créditos, máx. 29"
+                'message' => "El alumno {$nombreAlumno} ya no tiene créditos disponibles para este semestre. Tiene {$creditosActuales}/29 créditos y la materia requiere {$creditosNueva} (disponibles: {$creditosDisponibles}).",
+                'credit_error' => true,
             ], 422);
         }
 

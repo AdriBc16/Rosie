@@ -10,6 +10,7 @@ use App\Models\HistorialMateria;
 use App\Models\Inscripcion;
 use App\Models\Materia;
 use App\Models\Modulo;
+use App\Models\Semestre;
 use App\Models\HorarioGenerado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,6 +58,14 @@ class AuthController extends Controller
             $user = Estudiante::query()->where('correo', $correo)->first();
 
             if (!$user || !Hash::check($password, $user->password)) {
+                // Correo no existe en estudiantes — verificar si es docente con credenciales correctas
+                if (!$user) {
+                    $teacher = Docente::query()->where('correo', $correo)->first();
+                    if ($teacher && Hash::check($password, $teacher->password)) {
+                        $rolLabel = (int) $teacher->es_jefe_carrera === 1 ? 'Jefe de Carrera' : 'Docente';
+                        return response()->json(['message' => "Registrado como: {$rolLabel}."], 403);
+                    }
+                }
                 return response()->json(['message' => 'Credenciales invalidas.'], 401);
             }
 
@@ -74,6 +83,13 @@ class AuthController extends Controller
         $teacher = Docente::query()->where('correo', $correo)->first();
 
         if (!$teacher || !Hash::check($password, $teacher->password)) {
+            // Correo no existe en docentes — verificar si es estudiante con credenciales correctas
+            if (!$teacher) {
+                $student = Estudiante::query()->where('correo', $correo)->first();
+                if ($student && Hash::check($password, $student->password)) {
+                    return response()->json(['message' => 'Registrado como: Estudiante.'], 403);
+                }
+            }
             return response()->json(['message' => 'Credenciales invalidas.'], 401);
         }
 
@@ -121,13 +137,57 @@ class AuthController extends Controller
         }
 
         if ($portalUser['role'] === 'estudiante') {
-            $inscripciones = Inscripcion::query()
-                ->with(['materia:id_materia,nombre,creditos', 'modulo:id_modulo,fecha_inicio,fecha_final'])
+            $todasInscripciones = Inscripcion::query()
+                ->with(['materia:id_materia,nombre,creditos', 'modulo:id_modulo,nombre,fecha_inicio,fecha_final,id_semestre'])
                 ->where('id_estudiante', $portalUser['id'])
                 ->whereIn('estado', ['cursando', 'pendiente'])
                 ->get();
 
-            $data['inscripciones'] = $inscripciones->map(fn (Inscripcion $i) => [
+            // Semestre activo
+            $semestreActivo = Semestre::where('fecha_inicio', '<=', now())
+                ->where('fecha_final', '>=', now())
+                ->first()
+                ?? Semestre::orderBy('fecha_inicio', 'desc')->first();
+
+            $currentSemestreId = $semestreActivo?->id_semestre;
+
+            // Todos los semestres con sus inscripciones y créditos
+            $todosSemestres = Semestre::orderBy('fecha_inicio')->get();
+            $semestresData = $todosSemestres->map(function ($semestre) use ($todasInscripciones) {
+                $inscsSem = $todasInscripciones->filter(
+                    fn ($i) => $i->modulo?->id_semestre === $semestre->id_semestre
+                );
+                return [
+                    'id_semestre'  => $semestre->id_semestre,
+                    'nombre'       => $semestre->nombre,
+                    'fecha_inicio' => $semestre->fecha_inicio,
+                    'fecha_final'  => $semestre->fecha_final,
+                    'totalCredits' => (int) $inscsSem->sum(fn ($i) => $i->materia?->creditos ?? 0),
+                    'inscripciones' => $inscsSem->map(fn (Inscripcion $i) => [
+                        'id_inscripcion'   => $i->id_inscripcion,
+                        'materia'          => $i->materia?->nombre,
+                        'modulo'           => [
+                            'id'           => $i->modulo?->id_modulo,
+                            'nombre'       => $i->modulo?->nombre,
+                            'fecha_inicio' => $i->modulo?->fecha_inicio,
+                            'fecha_final'  => $i->modulo?->fecha_final,
+                            'creditos_materia' => $i->materia?->creditos,
+                        ],
+                        'estado'           => $i->estado,
+                        'intentos'         => $i->intentos,
+                    ])->values(),
+                ];
+            })->filter(fn ($s) => $s['inscripciones']->count() > 0 || $s['id_semestre'] === $currentSemestreId)
+              ->values();
+
+            $data['semestresData']    = $semestresData;
+            $data['currentSemestreId'] = $currentSemestreId;
+
+            // Para compatibilidad: inscripciones y créditos del semestre activo
+            $inscripcionesActuales = $todasInscripciones->filter(
+                fn ($i) => $i->modulo?->id_semestre === $currentSemestreId
+            );
+            $data['inscripciones'] = $inscripcionesActuales->map(fn (Inscripcion $i) => [
                 'id_inscripcion'   => $i->id_inscripcion,
                 'materia'          => $i->materia?->nombre,
                 'modulo'           => [
@@ -139,9 +199,9 @@ class AuthController extends Controller
                 ],
                 'estado'           => $i->estado,
                 'intentos'         => $i->intentos,
-            ]);
+            ])->values();
 
-            $data['totalCredits'] = $inscripciones->sum(fn ($i) => $i->materia?->creditos ?? 0);
+            $data['totalCredits'] = (int) $inscripcionesActuales->sum(fn ($i) => $i->materia?->creditos ?? 0);
             
             $horarioRaw = HorarioGenerado::query()
                 ->with([

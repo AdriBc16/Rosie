@@ -29,21 +29,13 @@ export default function Login() {
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-violet-600 opacity-[0.08] blur-[150px]" />
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6 items-center relative z-10">
-        <div className="hidden lg:block space-y-6">
-          <h1 className="font-h1 text-5xl text-slate-100 leading-tight font-extrabold">
-            Optimiza tu <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">aprendizaje</span>
-          </h1>
-          <p className="text-lg text-slate-400 max-w-md">
-            Accede a tu panel personalizado para gestionar exámenes, revisar materiales y conectar con tu comunidad educativa.
-          </p>
+        <div className="hidden lg:flex items-center justify-center">
           <div className="relative w-full aspect-[4/3] overflow-hidden flex items-center justify-center">
             <img
               alt="Portal Educativo Rosie"
               className="w-full h-full object-contain transition-all duration-700 hover:scale-105"
               src={logoRosie}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
           </div>
         </div>
 

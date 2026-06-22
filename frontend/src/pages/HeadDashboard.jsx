@@ -37,6 +37,7 @@ export default function HeadDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [showCurricula, setShowCurricula] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
@@ -57,9 +58,14 @@ export default function HeadDashboard() {
   const [studentsData, setStudentsData] = useState(null);  // grupos por cohorte
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [studentModal, setStudentModal] = useState(null);  // { estudiante, semestres }
+
+  // Pestaña docentes-materias
+  const [docentesMateriales, setDocentesMateriales] = useState([]);
+  const [loadingDocentesMateriales, setLoadingDocentesMateriales] = useState(false);
   const [loadingStudentMaterias, setLoadingStudentMaterias] = useState(false);
   const [convalidandoId, setConvalidandoId] = useState(null);  // id_materia en proceso
   const [studentsYearModal, setStudentsYearModal] = useState(null);
+  const MATERIAS_SEMESTRALES = ['English Beginners', 'English Intermediate', 'English High Intermediate', 'English Advanced'];
   const [form, setForm] = useState({ id_materia: '', id_semestre: '', id_modulo: '', id_docente: '', id_aula: '', id_bloque: '', enrollment_mode: 'none' });
   const [graphModal, setGraphModal] = useState(null); // { type: 'year'|'full', yearNumber?: number }
   const [graphZoom, setGraphZoom] = useState(1);
@@ -102,6 +108,9 @@ export default function HeadDashboard() {
   useEffect(() => {
     if (activeTab === 'students' && studentsData === null) {
       loadStudents();
+    }
+    if (activeTab === 'docentes-materias') {
+      loadDocentesMateriales();
     }
   }, [activeTab]);
 
@@ -295,31 +304,63 @@ export default function HeadDashboard() {
     catalog.bloques,
   ]);
 
+  // ¿La materia seleccionada en el form de asignación es semestral (inglés)?
+  const isMateriaAsignarSemestral = useMemo(() => {
+    if (!form.id_materia) return false;
+    const mat = (catalog.materias || []).find(m => String(m.id_materia) === String(form.id_materia));
+    return mat ? MATERIAS_SEMESTRALES.includes(mat.nombre) : false;
+  }, [form.id_materia, catalog.materias]);
+
+  // Para materias semestrales los bloques libres se calculan sobre todos los módulos del semestre
+  const bloquesLibresSemestral = useMemo(() => {
+    if (!isMateriaAsignarSemestral || !form.id_docente || !form.id_semestre) return [];
+    const docenteId = Number(form.id_docente);
+    const modSemestre = (catalog.modulos || []).filter(m => String(m.id_semestre) === String(form.id_semestre));
+    if (modSemestre.length === 0) return [];
+
+    // Un bloque es válido solo si el docente tiene disponibilidad en TODOS los módulos del semestre
+    return (catalog.bloques || []).filter(b => {
+      return modSemestre.every(mod => {
+        return (catalog.disponibilidadDocente || []).some(
+          d => d.id_docente === docenteId && d.id_modulo === mod.id_modulo && d.id_bloque === b.id_bloque
+        );
+      });
+    });
+  }, [isMateriaAsignarSemestral, form.id_docente, form.id_semestre, catalog.modulos, catalog.bloques, catalog.disponibilidadDocente]);
+
   const aulasDisponibles = useMemo(() => {
-    if (!form.id_modulo || !form.id_bloque)
-      return catalog.aulas || [];
-
-    const moduloId = Number(form.id_modulo);
     const bloqueId = Number(form.id_bloque);
+    if (!bloqueId) return catalog.aulas || [];
 
+    // Para semestral verificar disponibilidad en todos los módulos del semestre
+    if (isMateriaAsignarSemestral && form.id_semestre) {
+      const modIds = (catalog.modulos || [])
+        .filter(m => String(m.id_semestre) === String(form.id_semestre))
+        .map(m => m.id_modulo);
+      const aulasOcupadas = new Set(
+        (catalog.asignacionesActuales || [])
+          .filter(a => modIds.includes(a.id_modulo) && a.id_bloque === bloqueId)
+          .map(a => a.id_aula)
+      );
+      return (catalog.aulas || []).filter(a => !aulasOcupadas.has(a.id_aula));
+    }
+
+    if (!form.id_modulo) return catalog.aulas || [];
+    const moduloId = Number(form.id_modulo);
     const aulasOcupadas = new Set(
       (catalog.asignacionesActuales || [])
-        .filter(
-          a =>
-            a.id_modulo === moduloId &&
-            a.id_bloque === bloqueId
-        )
+        .filter(a => a.id_modulo === moduloId && a.id_bloque === bloqueId)
         .map(a => a.id_aula)
     );
-
-    return (catalog.aulas || []).filter(
-      aula => !aulasOcupadas.has(aula.id_aula)
-    );
+    return (catalog.aulas || []).filter(aula => !aulasOcupadas.has(aula.id_aula));
   }, [
+    isMateriaAsignarSemestral,
+    form.id_semestre,
     form.id_modulo,
     form.id_bloque,
     catalog.aulas,
     catalog.asignacionesActuales,
+    catalog.modulos,
   ]);
   // Materias que tienen al menos un docente asignado
   const materiasConDocente = useMemo(() => {
@@ -793,8 +834,9 @@ export default function HeadDashboard() {
   }, [catalog.materias, catalog.prerrequisitos, maxSemestre]);
 
   const handleAssign = async () => {
-    if (!form.id_materia || !form.id_docente || !form.id_aula || !form.id_modulo || !form.id_bloque) {
-      setFeedback('Selecciona materia, docente, aula, módulo y horario para vincular.');
+    const missingModuloOSemestre = isMateriaAsignarSemestral ? !form.id_semestre : !form.id_modulo;
+    if (!form.id_materia || !form.id_docente || !form.id_aula || missingModuloOSemestre || !form.id_bloque) {
+      setFeedback(`Selecciona materia, docente, aula, ${isMateriaAsignarSemestral ? 'semestre' : 'módulo'} y horario para vincular.`);
       return;
     }
 
@@ -803,8 +845,10 @@ export default function HeadDashboard() {
         id_materia: Number(form.id_materia),
         id_docente: Number(form.id_docente),
         id_aula: Number(form.id_aula),
-        id_modulo: Number(form.id_modulo),
         id_bloque: Number(form.id_bloque),
+        ...(isMateriaAsignarSemestral
+          ? { id_semestre: Number(form.id_semestre) }
+          : { id_modulo: Number(form.id_modulo) }),
       };
       const res = await axios.post('/portal/api/jefe/asignaciones', payload);
       setFeedback(res.data?.message || 'Asignación creada');
@@ -816,9 +860,12 @@ export default function HeadDashboard() {
     }
   };
 
+  const setError = (msg) => { setFeedback(msg); setFeedbackIsError(true); };
+  const setSuccess = (msg) => { setFeedback(msg); setFeedbackIsError(false); setTimeout(() => setFeedback(''), 5000); };
+
   const handleEnroll = async () => {
     if (!form.id_materia || !form.id_estudiante) {
-      setFeedback('Selecciona materia y alumno para inscribir.');
+      setError('Selecciona materia y alumno para inscribir.');
       return;
     }
 
@@ -832,21 +879,26 @@ export default function HeadDashboard() {
     if (String(form.id_estudiante).startsWith('cohort-')) {
       const semNum = Number(String(form.id_estudiante).replace('cohort-', ''));
       const students = estudiantesPorSemestre.get(semNum) || [];
-      if (students.length === 0) { setFeedback('No hay alumnos en ese semestre.'); return; }
-      let ok = 0; const errors = [];
+      if (students.length === 0) { setError('No hay alumnos en ese semestre.'); return; }
+      let ok = 0; const creditErrors = []; const otherErrors = [];
       for (const st of students) {
         try {
           await axios.post('/portal/api/jefe/inscripciones', buildPayload(st.id_estudiante));
           ok++;
         } catch (err) {
-          errors.push(`${st.nombre}: ${err.response?.data?.message || 'error'}`);
+          const isCreditError = err.response?.data?.credit_error;
+          const msg = `${st.nombre}: ${err.response?.data?.message || 'error'}`;
+          if (isCreditError) creditErrors.push(st.nombre);
+          else otherErrors.push(msg);
         }
       }
-      const msg = errors.length === 0
-        ? `${ok} alumnos inscritos correctamente.`
-        : `${ok} inscritos. Errores: ${errors.join(' | ')}`;
-      setFeedback(msg);
-      if (errors.length === 0) setTimeout(() => setFeedback(''), 5000);
+      const parts = [];
+      if (ok > 0) parts.push(`${ok} inscrito(s) correctamente`);
+      if (creditErrors.length > 0) parts.push(`Sin créditos: ${creditErrors.join(', ')}`);
+      if (otherErrors.length > 0) parts.push(otherErrors.join(' | '));
+      const msg = parts.join('. ');
+      const hasErrors = creditErrors.length > 0 || otherErrors.length > 0;
+      hasErrors ? setError(msg) : setSuccess(msg);
       await loadCatalog();
       return;
     }
@@ -854,11 +906,10 @@ export default function HeadDashboard() {
     // Inscripción individual
     try {
       const res = await axios.post('/portal/api/jefe/inscripciones', buildPayload(Number(form.id_estudiante)));
-      setFeedback(res.data?.message || 'Inscripción realizada con éxito');
-      setTimeout(() => setFeedback(''), 5000);
+      setSuccess(res.data?.message || 'Inscripción realizada con éxito');
       await loadCatalog();
     } catch (err) {
-      setFeedback(err.response?.data?.message || 'Error en la inscripción');
+      setError(err.response?.data?.message || 'Error en la inscripción');
     }
   };
 
@@ -889,6 +940,18 @@ export default function HeadDashboard() {
       setStudentsData([]);
     } finally {
       setLoadingStudents(false);
+    }
+  };
+
+  const loadDocentesMateriales = async () => {
+    setLoadingDocentesMateriales(true);
+    try {
+      const res = await axios.get('/portal/api/jefe/docentes-materias');
+      setDocentesMateriales(res.data.data || []);
+    } catch {
+      setDocentesMateriales([]);
+    } finally {
+      setLoadingDocentesMateriales(false);
     }
   };
 
@@ -977,6 +1040,9 @@ export default function HeadDashboard() {
           <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'students' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('students'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="material-symbols-outlined">school</span><span className="font-semibold text-sm">Estudiantes</span>
           </a>
+          <a className={`flex items-center gap-3 rounded-xl py-3 px-4 transition-all cursor-pointer ${activeTab === 'docentes-materias' ? 'bg-neutral-900 text-white border-l-4 border-rose-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-900'}`} onClick={() => { setActiveTab('docentes-materias'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <span className="material-symbols-outlined">groups</span><span className="font-semibold text-sm">Docentes y Materias</span>
+          </a>
         </nav>
 
         <div className="mt-auto pt-6 border-t border-neutral-800">
@@ -1006,12 +1072,12 @@ export default function HeadDashboard() {
         <div className="mt-16 p-8 flex gap-8 overflow-y-auto h-[calc(100vh-64px)]">
           <div className="flex-1 flex flex-col gap-6">
             {feedback && (
-              <div className="px-4 py-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 text-sm flex items-center justify-between shadow-lg shadow-cyan-500/5">
+              <div className={`px-4 py-3 rounded-xl border text-sm flex items-center justify-between shadow-lg ${feedbackIsError ? 'border-red-500/50 bg-red-500/10 text-red-300 shadow-red-900/10' : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200 shadow-cyan-500/5'}`}>
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">info</span>
+                  <span className="material-symbols-outlined text-sm">{feedbackIsError ? 'error' : 'info'}</span>
                   {feedback}
                 </div>
-                <button onClick={() => setFeedback('')} className="text-cyan-500 hover:text-cyan-300 material-symbols-outlined text-sm">close</button>
+                <button onClick={() => { setFeedback(''); setFeedbackIsError(false); }} className={`material-symbols-outlined text-sm ${feedbackIsError ? 'text-red-500 hover:text-red-300' : 'text-cyan-500 hover:text-cyan-300'}`}>close</button>
               </div>
             )}
             {activeTab === 'agenda' && (
@@ -1108,9 +1174,13 @@ export default function HeadDashboard() {
             {activeTab === 'assign' && (
               <div id="assign-section" className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d]">
                 <h3 className="text-xl font-bold mb-4">Vincular Docente y Aula</h3>
-                <p className="text-xs text-neutral-500 mb-6">Selecciona módulo y horario específicos. Solo aparecen horarios donde el docente tiene disponibilidad registrada.</p>
+                <p className="text-xs text-neutral-500 mb-6">
+                  {isMateriaAsignarSemestral
+                    ? 'Materia semestral (inglés): selecciona el semestre completo. El docente se asignará a todos los módulos automáticamente.'
+                    : 'Selecciona módulo y horario específicos. Solo aparecen horarios donde el docente tiene disponibilidad registrada.'}
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value }))}>
+                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_materia} onChange={(e) => setForm((p) => ({ ...p, id_materia: e.target.value, id_modulo: '', id_semestre: '', id_bloque: '' }))}>
                     <option value="">Seleccionar Materia</option>
                     {(catalog.materias || []).map((m) => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
                   </select>
@@ -1120,22 +1190,26 @@ export default function HeadDashboard() {
                   </select>
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_aula} onChange={(e) => setForm((p) => ({ ...p, id_aula: e.target.value }))}>
                     <option value="">Seleccionar Aula</option>
-                    {/* {(catalog.aulas || []).map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)} */}
                     {aulasDisponibles.map((a) => <option key={a.id_aula} value={a.id_aula}>{a.nombre}</option>)}
                   </select>
-                  <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value, id_bloque: '' }))}>
-                    <option value="">Seleccionar Módulo</option>
-                    {(catalog.modulos || []).map((m) => <option key={m.id_modulo} value={m.id_modulo}>{m.nombre} ({formatDateShort(m.fecha_inicio)})</option>)}
-                  </select>
+                  {isMateriaAsignarSemestral ? (
+                    <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_semestre} onChange={(e) => setForm((p) => ({ ...p, id_semestre: e.target.value, id_bloque: '' }))}>
+                      <option value="">Seleccionar Semestre</option>
+                      {(catalog.semestres || []).map((s) => <option key={s.id_semestre} value={s.id_semestre}>{s.nombre}</option>)}
+                    </select>
+                  ) : (
+                    <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_modulo} onChange={(e) => setForm((p) => ({ ...p, id_modulo: e.target.value, id_bloque: '' }))}>
+                      <option value="">Seleccionar Módulo</option>
+                      {(catalog.modulos || []).map((m) => <option key={m.id_modulo} value={m.id_modulo}>{m.nombre} ({formatDateShort(m.fecha_inicio)})</option>)}
+                    </select>
+                  )}
                   <select className="bg-[#121212] border border-[#2d2d2d] rounded-xl px-4 py-3" value={form.id_bloque} onChange={(e) => setForm((p) => ({ ...p, id_bloque: e.target.value }))}>
                     <option value="">
-                      {form.id_docente && form.id_modulo
-                        ? bloquesDisponiblesParaAsignar.length === 0
-                          ? 'Sin disponibilidad en este módulo'
-                          : 'Seleccionar Horario'
-                        : 'Selecciona docente y módulo primero'}
+                      {isMateriaAsignarSemestral
+                        ? (form.id_docente && form.id_semestre ? (bloquesLibresSemestral.length === 0 ? 'Sin disponibilidad en todos los módulos' : 'Seleccionar Horario') : 'Selecciona docente y semestre primero')
+                        : (form.id_docente && form.id_modulo ? (bloquesDisponiblesParaAsignar.length === 0 ? 'Sin disponibilidad en este módulo' : 'Seleccionar Horario') : 'Selecciona docente y módulo primero')}
                     </option>
-                    {bloquesLibresParaDocente.map((b) => (
+                    {(isMateriaAsignarSemestral ? bloquesLibresSemestral : bloquesLibresParaDocente).map((b) => (
                       <option key={b.id_bloque} value={b.id_bloque}>
                         Bloque {b.nombre} — {b.hora_inicio?.slice(0, 5)} a {b.hora_fin?.slice(0, 5)}
                       </option>
@@ -1228,7 +1302,6 @@ export default function HeadDashboard() {
                     <option value="">Seleccionar Estudiante</option>
                     {Array.from(estudiantesPorSemestre.entries()).map(([sem, students]) => (
                       <optgroup key={`sem-${sem}`} label={`Semestre ${sem}`}>
-                        <option value={`cohort-${sem}`}>— Todos los alumnos Semestre {sem} ({students.length})</option>
                         {students.map((est) => <option key={`enroll-est-${est.id_estudiante}`} value={est.id_estudiante}>{est.nombre} {est.apellido}</option>)}
                       </optgroup>
                     ))}
@@ -1237,6 +1310,111 @@ export default function HeadDashboard() {
                 <button onClick={handleEnroll} className="mt-4 px-8 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-500">
                   Inscribir Alumno
                 </button>
+              </div>
+            )}
+
+            {activeTab === 'docentes-materias' && (
+              <div className="bg-[#1a1a1a] p-6 rounded-[24px] border border-[#2d2d2d] flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">Docentes y Materias</h3>
+                    <p className="text-neutral-400 text-sm mt-1">Vista de docentes con sus materias asignadas y estudiantes inscritos</p>
+                  </div>
+                  <button
+                    onClick={loadDocentesMateriales}
+                    className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg hover:border-rose-500/50 text-sm font-medium text-white"
+                  >
+                    Recargar
+                  </button>
+                </div>
+
+                {loadingDocentesMateriales ? (
+                  <div className="flex items-center justify-center py-12 text-neutral-400">
+                    <span>Cargando...</span>
+                  </div>
+                ) : docentesMateriales.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-neutral-400">
+                    <span>No hay docentes con materias asignadas</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {docentesMateriales.map((docente) => (
+                      <div key={docente.id_docente} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 overflow-hidden">
+                        <div className="bg-gradient-to-r from-rose-600 to-orange-500 px-4 py-3 rounded-lg mb-4">
+                          <h4 className="text-lg font-bold text-white">{docente.nombre} {docente.apellido}</h4>
+                          <p className="text-xs text-white/80">{docente.correo}</p>
+                          <p className="text-xs text-white/60 mt-1">{docente.materias.length} materia(s)</p>
+                        </div>
+
+                        {docente.materias.length === 0 ? (
+                          <div className="text-neutral-500 text-sm p-3">Sin materias asignadas</div>
+                        ) : (
+                          <div className="space-y-3">
+                            {docente.materias.map((materia) => (
+                              <div key={materia.id_materia} className="bg-neutral-800/50 border border-neutral-700 rounded-lg p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <h5 className="font-semibold text-white text-sm">{materia.nombre}</h5>
+                                    <p className="text-xs text-neutral-400">{materia.creditos} créditos</p>
+                                  </div>
+                                </div>
+
+                                {materia.modulos.length > 0 && (
+                                  <div className="mb-3">
+                                    <p className="text-xs font-medium text-neutral-300 mb-2">Módulos:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {materia.modulos.map((mod, idx) => (
+                                        <div key={idx} className="bg-neutral-700/50 rounded px-2 py-1 text-xs text-neutral-200">
+                                          <div className="font-medium">{mod.nombre}</div>
+                                          {mod.bloque && mod.aula && (
+                                            <>
+                                              <div className="text-neutral-400">{mod.horario}</div>
+                                              <div className="text-neutral-400">Aula: {mod.aula}</div>
+                                            </>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {materia.estudiantes.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-neutral-300 mb-2">
+                                      Estudiantes ({materia.estudiantes.length}):
+                                    </p>
+                                    <div className="grid grid-cols-1 gap-1 max-h-40 overflow-y-auto">
+                                      {materia.estudiantes.map((est) => (
+                                        <div key={est.id_estudiante} className="bg-neutral-900/50 rounded px-2 py-1 text-xs flex items-center justify-between">
+                                          <div>
+                                            <div className="text-neutral-100">{est.nombre} {est.apellido}</div>
+                                            <div className="text-neutral-500">{est.correo}</div>
+                                          </div>
+                                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                            est.estado === 'aprobada' ? 'bg-emerald-500/20 text-emerald-300' :
+                                            est.estado === 'cursando' ? 'bg-cyan-500/20 text-cyan-300' :
+                                            est.estado === 'pendiente' ? 'bg-amber-500/20 text-amber-300' :
+                                            'bg-neutral-700 text-neutral-300'
+                                          }`}>
+                                            {est.estado}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {materia.estudiantes.length === 0 && (
+                                  <div className="text-neutral-500 text-xs py-2">Sin estudiantes inscritos</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

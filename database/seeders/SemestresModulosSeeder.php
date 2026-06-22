@@ -16,7 +16,7 @@ class SemestresModulosSeeder extends Seeder
         $semestre1 = Semestre::updateOrCreate(
             ['numero' => 1],
             [
-                'nombre' => 'PRIMERO 2026',
+                'nombre' => 'SEMESTRE I 2026',
                 'fecha_inicio' => '2026-02-04',
                 'fecha_final' => '2026-06-26'
             ]
@@ -25,42 +25,42 @@ class SemestresModulosSeeder extends Seeder
         $semestre2 = Semestre::updateOrCreate(
             ['numero' => 2],
             [
-                'nombre' => 'SEGUNDO 2026',
+                'nombre' => 'SEMESTRE II 2026',
                 'fecha_inicio' => '2026-08-03',
                 'fecha_final' => '2026-12-20'
             ]
         );
 
-        // 2. Crear Modulos para PRIMERO 2026
+        // 2. Crear Modulos para SEMESTRE I 2026
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre1->id_semestre, 'numero_en_semestre' => 1],
-            ['nombre' => 'Modulo 1', 'fecha_inicio' => '2026-02-04', 'fecha_final' => '2026-03-23', 'creditos' => 3]
+            ['nombre' => 'Módulo 1 — Sem. I', 'fecha_inicio' => '2026-02-04', 'fecha_final' => '2026-03-23', 'creditos' => 3]
         );
 
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre1->id_semestre, 'numero_en_semestre' => 2],
-            ['nombre' => 'Modulo 2', 'fecha_inicio' => '2026-03-24', 'fecha_final' => '2026-05-08', 'creditos' => 3]
+            ['nombre' => 'Módulo 2 — Sem. I', 'fecha_inicio' => '2026-03-24', 'fecha_final' => '2026-05-08', 'creditos' => 3]
         );
 
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre1->id_semestre, 'numero_en_semestre' => 3],
-            ['nombre' => 'Modulo 3', 'fecha_inicio' => '2026-05-11', 'fecha_final' => '2026-06-26', 'creditos' => 3]
+            ['nombre' => 'Módulo 3 — Sem. I', 'fecha_inicio' => '2026-05-11', 'fecha_final' => '2026-06-26', 'creditos' => 3]
         );
 
-        // 3. Crear Modulos para SEGUNDO 2026
+        // 3. Crear Modulos para SEMESTRE II 2026
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre2->id_semestre, 'numero_en_semestre' => 1],
-            ['nombre' => 'Modulo 1', 'fecha_inicio' => '2026-08-03', 'fecha_final' => '2026-09-20', 'creditos' => 3]
+            ['nombre' => 'Módulo 1 — Sem. II', 'fecha_inicio' => '2026-08-03', 'fecha_final' => '2026-09-20', 'creditos' => 3]
         );
 
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre2->id_semestre, 'numero_en_semestre' => 2],
-            ['nombre' => 'Modulo 2', 'fecha_inicio' => '2026-09-21', 'fecha_final' => '2026-11-08', 'creditos' => 3]
+            ['nombre' => 'Módulo 2 — Sem. II', 'fecha_inicio' => '2026-09-21', 'fecha_final' => '2026-11-08', 'creditos' => 3]
         );
 
         Modulo::updateOrCreate(
             ['id_semestre' => $semestre2->id_semestre, 'numero_en_semestre' => 3],
-            ['nombre' => 'Modulo 3', 'fecha_inicio' => '2026-11-09', 'fecha_final' => '2026-12-20', 'creditos' => 3]
+            ['nombre' => 'Módulo 3 — Sem. II', 'fecha_inicio' => '2026-11-09', 'fecha_final' => '2026-12-20', 'creditos' => 3]
         );
 
         // 4. Crear Horarios (Bloques Horarios)
